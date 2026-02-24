@@ -1,0 +1,131 @@
+{
+    "name": "isocode-local",
+    "displayName": "IsoCode",
+    "description": "Local AI Agent for VS Code",
+    "publisher": "isocode",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/isocode/isocode-local"
+    },
+    "version": "0.0.7",
+    "engines": {
+        "vscode": "^1.85.0"
+    },
+    "categories": [
+        "AI",
+        "Programming Languages"
+    ],
+    "activationEvents": [
+        "onView:isocode-sidebar-view"
+    ],
+    "main": "./out/extension.js",
+    "contributes": {
+        "viewsContainers": {
+            "activitybar": [
+                {
+                    "id": "isocode-sidebar",
+                    "title": "IsoCode",
+                    "icon": "media/icon.png"
+                }
+            ]
+        },
+        "views": {
+            "isocode-sidebar": [
+                {
+                    "type": "webview",
+                    "id": "isocode-sidebar-view",
+                    "name": "Chat"
+                }
+            ]
+        },
+        "commands": [
+            {
+                "command": "isocode.ask",
+                "title": "IsoCode: Ask"
+            }
+        ],
+        "configuration": {
+            "title": "IsoCode Local",
+            "properties": {
+                "isocode.serverUrl": {
+                    "type": "string",
+                    "default": "http://localhost:3000",
+                    "description": "URL of the IsoCode agent server"
+                },
+                "isocode.llmProvider": {
+                    "type": "string",
+                    "default": "ollama",
+                    "enum": ["ollama", "lmstudio", "openai", "auto"],
+                    "description": "LLM provider: ollama (default), lmstudio, openai, or auto-detect"
+                },
+                "isocode.llmApiBase": {
+                    "type": "string",
+                    "default": "http://localhost:11434/v1",
+                    "description": "LLM API base URL. Ollama: http://localhost:11434/v1, LM Studio: http://localhost:1234/v1"
+                },
+                "isocode.defaultModel": {
+                    "type": "string",
+                    "default": "qwen2.5-coder:7b",
+                    "description": "Default model ID. For Ollama use model names like 'qwen2.5-coder:7b', 'llama3.1:8b', 'codellama:13b'"
+                },
+                "isocode.shellPermissions": {
+                    "type": "string",
+                    "default": "ask",
+                    "enum": ["ask", "always", "never"],
+                    "description": "Shell command execution permission policy"
+                },
+                "isocode.editPermissions": {
+                    "type": "string",
+                    "default": "ask",
+                    "enum": ["ask", "always", "never"],
+                    "description": "File edit permission policy"
+                },
+                "isocode.mcpEnabled": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Enable MCP (Model Context Protocol) servers"
+                },
+                "isocode.mcpConfig": {
+                    "type": "string",
+                    "default": "",
+                    "description": "JSON array of MCP server configurations"
+                },
+                "isocode.systemPrompt": {
+                    "type": "string",
+                    "default": "",
+                    "description": "Custom system prompt override for the AI agent"
+                },
+                "isocode.historyLimit": {
+                    "type": "number",
+                    "default": 50,
+                    "description": "Maximum number of chat messages to retain in history"
+                },
+                "isocode.contextWindow": {
+                    "type": "number",
+                    "default": 30,
+                    "description": "Number of context messages to send to the LLM"
+                }
+            }
+        }
+    },
+    "scripts": {
+        "vscode:prepublish": "npm run compile",
+        "compile": "tsc -p ./",
+        "watch": "tsc -watch -p ./",
+        "pretest": "npm run compile && npm run lint",
+        "lint": "eslint src --ext ts",
+        "test": "node ./out/test/runTest.js"
+    },
+    "devDependencies": {
+        "@types/node": "20.x",
+        "@types/vscode": "^1.85.0",
+        "@typescript-eslint/eslint-plugin": "^6.15.0",
+        "@typescript-eslint/parser": "^6.15.0",
+        "eslint": "^8.56.0",
+        "typescript": "^5.3.3"
+    },
+    "dependencies": {
+        "axios": "^1.6.5",
+        "diff": "^8.0.3"
+    }
+}

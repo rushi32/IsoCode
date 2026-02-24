@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Simple Calculator</title>
+<style>
+  body{font-family:sans-serif;background:#f0f0f0;padding:2rem;}
+  .calculator{max-width:300px;margin:auto;background:white;padding:1rem;border-radius:.5rem;box-shadow:0 4px 10px rgba(0,0,0,.1);}
+  .display{height:50px;font-size:1.5rem;text-align:right;padding:0 10px;border-bottom:2px solid #ccc;margin-bottom:10px;overflow:hidden;white-space:nowrap;}
+  .keys{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;}
+  button{padding:15px;font-size:1.2rem;background:#eee;border:none;border-radius:.3rem;cursor:pointer;}
+  button.operator{background:#ff9500;color:white;}
+  button.equal{grid-column:span 4;background:#007aff;color:white;}
+</style>
+</head>
+<body>
+<div class="calculator">
+  <div id="display" class="display">0</div>
+  <div class="keys">
+    <button data-value="7">7</button>
+    <button data-value="8">8</button>
+    <button data-value="9">9</button>
+    <button class="operator" data-op="/">÷</button>
+
+    <button data-value="4">4</button>
+    <button data-value="5">5</button>
+    <button data-value="6">6</button>
+    <button class="operator" data-op="*">×</button>
+
+    <button data-value="1">1</button>
+    <button data-value="2">2</button>
+    <button data-value="3">3</button>
+    <button class="operator" data-op="-">−</button>
+
+    <button data-value="0">0</button>
+    <button data-value=".">.</button>
+    <button class="equal" id="equals">=</button>
+    <button class="operator" data-op="+">+</button>
+  </div>
+</div>
+<script src="script.js"></script>
+</body>
+</html>

@@ -1,0 +1,437 @@
+/* Google Material Design Components for IsoCode */
+
+/* Modern Buttons */
+.md-button {
+    font-family: 'Google Sans', var(--vscode-font-family, sans-serif);
+    font-weight: 500;
+    font-size: 14px;
+    letter-spacing: 0.0892857143em;
+    text-transform: uppercase;
+    border-radius: 4px;
+    padding: 8px 16px;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    border: none;
+    outline: none;
+}
+
+.md-button-filled {
+    background: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.md-button-filled:hover {
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    transform: translateY(-1px);
+}
+
+.md-button-outlined {
+    background: transparent;
+    border: 1px solid var(--vscode-button-border, var(--border-color));
+    color: var(--vscode-button-foreground);
+}
+
+.md-button-outlined:hover {
+    background: var(--vscode-button-hoverBackground);
+}
+
+.md-button-text {
+    background: transparent;
+    color: var(--vscode-textLink-foreground);
+    padding: 8px 12px;
+}
+
+.md-button-text:hover {
+    background: var(--vscode-toolbar-hoverBackground);
+}
+
+/* Cards */
+.md-card {
+    background: var(--vscode-editor-background);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 16px;
+    margin: 8px 0;
+    transition: box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.md-card-elevated {
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1), 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.md-card-elevated:hover {
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15), 0 8px 16px rgba(0, 0, 0, 0.15);
+}
+
+.md-card-header {
+    font-size: 16px;
+    font-weight: 500;
+    margin-bottom: 12px;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.md-card-content {
+    color: var(--text-primary);
+    line-height: 1.5;
+}
+
+.md-card-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 16px;
+    justify-content: flex-end;
+}
+
+/* Modern Chips */
+.md-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 16px;
+    font-size: 13px;
+    background: var(--vscode-badge-background);
+    color: var(--vscode-badge-foreground);
+    border: 1px solid transparent;
+    transition: all 0.2s ease;
+}
+
+.md-chip:hover {
+    background: var(--vscode-list-hoverBackground);
+}
+
+.md-chip-clickable {
+    cursor: pointer;
+}
+
+.md-chip-remove {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    opacity: 0.7;
+    transition: opacity 0.2s ease;
+}
+
+.md-chip-remove:hover {
+    opacity: 1;
+    background: rgba(0, 0, 0, 0.1);
+}
+
+/* Progress Indicators */
+.md-progress-linear {
+    height: 4px;
+    background: var(--vscode-progressBar-background);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.md-progress-bar {
+    height: 100%;
+    background: var(--vscode-button-background);
+    transition: width 0.3s ease;
+}
+
+.md-progress-indeterminate {
+    position: relative;
+    overflow: hidden;
+}
+
+.md-progress-indeterminate::before {
+    content: '';
+    position: absolute;
+    height: 100%;
+    width: 40%;
+    background: var(--vscode-button-background);
+    animation: indeterminate 1.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+@keyframes indeterminate {
+    0% {
+        left: -40%;
+    }
+
+    100% {
+        left: 100%;
+    }
+}
+
+.md-spinner {
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--vscode-progressBar-background);
+    border-top-color: var(--vscode-button-background);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Tooltips */
+.md-tooltip {
+    position: absolute;
+    background: var(--vscode-editorHoverWidget-background);
+    border: 1px solid var(--vscode-editorHoverWidget-border);
+    color: var(--vscode-editorHoverWidget-foreground);
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    max-width: 300px;
+    z-index: 1000;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    pointer-events: none;
+}
+
+/* Dividers */
+.md-divider {
+    height: 1px;
+    background: var(--border-color);
+    margin: 16px 0;
+}
+
+/* Icon Buttons */
+.md-icon-button {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    transition: all 0.2s ease;
+}
+
+.md-icon-button:hover {
+    background: var(--vscode-toolbar-hoverBackground);
+    color: var(--text-primary);
+}
+
+.md-icon-button:active {
+    transform: scale(0.95);
+}
+
+/* Task Boundary Component */
+.task-boundary {
+    border-left: 3px solid var(--vscode-button-background);
+    margin: 16px 0;
+    background: var(--vscode-editor-background);
+    border-radius: 8px;
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+.task-boundary-header {
+    padding: 12px 16px;
+    background: var(--vscode-editorWidget-background);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    user-select: none;
+}
+
+.task-boundary-header:hover {
+    background: var(--vscode-list-hoverBackground);
+}
+
+.task-boundary-icon {
+    font-size: 18px;
+    transition: transform 0.3s ease;
+}
+
+.task-boundary-collapsed .task-boundary-icon {
+    transform: rotate(-90deg);
+}
+
+.task-boundary-title {
+    flex: 1;
+    font-weight: 500;
+    font-size: 14px;
+}
+
+.task-boundary-status {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.task-boundary-mode {
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: uppercase;
+}
+
+.task-mode-planning {
+    background: #e3f2fd;
+    color: #1976d2;
+}
+
+.task-mode-execution {
+    background: #f3e5f5;
+    color: #7b1fa2;
+}
+
+.task-mode-verification {
+    background: #e8f5e9;
+    color: #388e3c;
+}
+
+.task-boundary-content {
+    padding: 16px;
+    max-height: 500px;
+    overflow-y: auto;
+    transition: max-height 0.3s ease;
+}
+
+.task-boundary-collapsed .task-boundary-content {
+    max-height: 0;
+    padding: 0;
+    overflow: hidden;
+}
+
+/* Artifact Preview */
+.artifact-preview {
+    background: var(--vscode-editorWidget-background);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 12px;
+    margin: 8px 0;
+}
+
+.artifact-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.artifact-icon {
+    font-size: 20px;
+}
+
+.artifact-title {
+    flex: 1;
+    font-weight: 500;
+    font-size: 14px;
+}
+
+.artifact-actions {
+    display: flex;
+    gap: 4px;
+}
+
+.artifact-content {
+    font-size: 13px;
+    line-height: 1.6;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+/* Diff Viewer */
+.diff-viewer {
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.diff-line {
+    display: flex;
+    padding: 0 8px;
+    line-height: 1.5;
+}
+
+.diff-line-number {
+    width: 50px;
+    text-align: right;
+    padding-right: 12px;
+    color: var(--text-secondary);
+    user-select: none;
+}
+
+.diff-line-content {
+    flex: 1;
+    white-space: pre;
+}
+
+.diff-line-add {
+    background: rgba(0, 255, 0, 0.1);
+}
+
+.diff-line-remove {
+    background: rgba(255, 0, 0, 0.1);
+}
+
+.diff-line-add .diff-line-content::before {
+    content: '+ ';
+    color: #22863a;
+}
+
+.diff-line-remove .diff-line-content::before {
+    content: '- ';
+    color: #b31d28;
+}
+
+/* Animated Transitions */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.fade-in {
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes slideDown {
+    from {
+        max-height: 0;
+        opacity: 0;
+    }
+
+    to {
+        max-height: 500px;
+        opacity: 1;
+    }
+}
+
+.slide-down {
+    animation: slideDown 0.3s ease;
+}
+.diff-preview {
+  background:#0b1220;
+  color:#e6eef8;
+  padding:12px;
+  border-radius:8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", monospace;
+  white-space: pre;
+  overflow:auto;
+  max-height:240px;
+}
+
+.diff-actions { display:flex; gap:8px; margin-top:8px; }
+.message-code { background:#0f1724; padding:10px; border-radius:6px; overflow:auto; }

@@ -1,0 +1,23 @@
+# Ignore source TS
+src/**
+**/*.ts
+
+# Ignore node stuff
+#node_modules/**
+npm-debug.log
+
+# Ignore build artifacts
+.vscode/**
+test/**
+coverage/**
+
+# Ignore workspace/runtime data
+.isocode/**
+agent_server/**
+
+# KEEP compiled output
+!out/**
+!media/**
+!package.json
+!README.md
+!CHANGELOG.md

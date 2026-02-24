@@ -1,0 +1,57 @@
+# Dependencies
+node_modules/
+package-lock.json
+package-lock.json.gz
+yarn.lock
+
+# Environment and secrets (never push)
+.env
+.env.local
+.env.*.local
+user-config.json
+
+# IsoCode runtime data (do NOT commit — created on first run)
+.isocode/
+
+# Legacy
+.antigravity/
+
+# Build and artifacts
+dist/
+out/
+*.vsix
+*.zip
+*.log
+npm-debug.log*
+debug.log
+
+# Test / temp
+.vscode-test/
+e2e_summary.txt
+test_write.txt
+safe_test.txt
+*.tmp
+*.bak
+*.txt
+.DS_Store
+Thumbs.db
+output_log*
+extension.zip
+
+Optional: uncomment to exclude old copies
+calculator/
+server_old/
+extension_old/
+.server_old/
+.extension_old/
+cli/
+
+# Optional: exclude internal docs (uncomment if you don't want these in the repo)
+.vscodeignore
+Extension_fixes_summary.md
+FIX_COMPLETION_REPORT.md
+OPEN_SOURCE_GUIDE.md
+README_FIX_COMPLETE.md
+TECHNICAL_FIX_DETAILS.md
+SPEC.md
+CHANGELOG.md
