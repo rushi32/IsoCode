@@ -396,9 +396,103 @@ function renderUnifiedDiff(diff) {
     row.appendChild(avatar);
     row.appendChild(bubble);
     chatHistory.appendChild(row);
+    if (sender === 'assistant') {
+      lastAssistantRow = row;
+      lastAssistantBubble = bubble;
+    }
     scrollChatToBottom();
 
     return { row, bubble };
+  }
+
+  function switchVersion(bubble, version) {
+    const panels = bubble.querySelectorAll('.version-panel');
+    const tabs = bubble.querySelectorAll('.version-tab');
+    panels.forEach((p) => p.classList.toggle('version-active', p.dataset.version === version));
+    tabs.forEach((t) => t.classList.toggle('active', t.dataset.v === version));
+  }
+
+  function addVersionToLastAssistant(newContentHtml) {
+    if (!lastAssistantRow || !lastAssistantBubble) return;
+    const bubble = lastAssistantBubble;
+    if (bubble.querySelector('.version-tabs')) {
+      const panel2 = bubble.querySelector('.version-panel[data-version="2"]');
+      if (panel2) {
+        panel2.innerHTML = newContentHtml;
+        switchVersion(bubble, '2');
+      }
+      return;
+    }
+    const currentContent = bubble.innerHTML;
+    bubble.innerHTML = '';
+    const tabs = document.createElement('div');
+    tabs.className = 'version-tabs';
+    const btn1 = document.createElement('button');
+    btn1.className = 'version-tab active';
+    btn1.dataset.v = '1';
+    btn1.textContent = 'v1';
+    const btn2 = document.createElement('button');
+    btn2.className = 'version-tab';
+    btn2.dataset.v = '2';
+    btn2.textContent = 'v2';
+    btn1.onclick = () => switchVersion(bubble, '1');
+    btn2.onclick = () => switchVersion(bubble, '2');
+    tabs.appendChild(btn1);
+    tabs.appendChild(btn2);
+    const panel1 = document.createElement('div');
+    panel1.className = 'version-panel version-active';
+    panel1.dataset.version = '1';
+    panel1.innerHTML = currentContent;
+    const panel2 = document.createElement('div');
+    panel2.className = 'version-panel';
+    panel2.dataset.version = '2';
+    panel2.innerHTML = newContentHtml;
+    bubble.appendChild(tabs);
+    bubble.appendChild(panel1);
+    bubble.appendChild(panel2);
+    switchVersion(bubble, '2');
+  }
+
+  function prepareLastAssistantForStreamingV2() {
+    if (!lastAssistantRow || !lastAssistantBubble) return null;
+    const bubble = lastAssistantBubble;
+    if (bubble.querySelector('.version-tabs')) {
+      const panel2 = bubble.querySelector('.version-panel[data-version="2"]');
+      if (panel2) {
+        panel2.innerHTML = '';
+        switchVersion(bubble, '2');
+        return panel2;
+      }
+      return null;
+    }
+    const currentContent = bubble.innerHTML;
+    bubble.innerHTML = '';
+    const tabs = document.createElement('div');
+    tabs.className = 'version-tabs';
+    const btn1 = document.createElement('button');
+    btn1.className = 'version-tab active';
+    btn1.dataset.v = '1';
+    btn1.textContent = 'v1';
+    const btn2 = document.createElement('button');
+    btn2.className = 'version-tab';
+    btn2.dataset.v = '2';
+    btn2.textContent = 'v2';
+    btn1.onclick = () => switchVersion(bubble, '1');
+    btn2.onclick = () => switchVersion(bubble, '2');
+    tabs.appendChild(btn1);
+    tabs.appendChild(btn2);
+    const panel1 = document.createElement('div');
+    panel1.className = 'version-panel version-active';
+    panel1.dataset.version = '1';
+    panel1.innerHTML = currentContent;
+    const panel2 = document.createElement('div');
+    panel2.className = 'version-panel';
+    panel2.dataset.version = '2';
+    bubble.appendChild(tabs);
+    bubble.appendChild(panel1);
+    bubble.appendChild(panel2);
+    switchVersion(bubble, '2');
+    return panel2;
   }
 
   // Track current collapsible steps group
@@ -407,6 +501,11 @@ function renderUnifiedDiff(diff) {
   let currentStepsCount = 0;
   let currentStepsLabel = null;
   let lastThoughtKey = ''; // avoid repeating the same thought/plan step in UI
+
+  // Retry versioning (ChatGPT-style: show 2nd version on same message)
+  let isRetryResponse = false;
+  let lastAssistantRow = null;
+  let lastAssistantBubble = null;
 
   function getOrCreateStepsGroup() {
     if (currentStepsGroup && chatHistory && chatHistory.contains(currentStepsGroup)) {
@@ -511,6 +610,15 @@ function renderUnifiedDiff(diff) {
 
     // Close any open steps group when we get a real message
     closeStepsGroup();
+
+    if (isRetryResponse && lastAssistantRow && lastAssistantBubble) {
+      addVersionToLastAssistant(renderMarkdownToHtml(displayText));
+      isRetryResponse = false;
+      const bubble = lastAssistantBubble;
+      const panel2 = bubble.querySelector('.version-panel[data-version="2"]');
+      if (panel2 && currentMode === 'chat') addCodeApplyButtons(panel2, displayText);
+      return;
+    }
 
     const { row, bubble } = createMessageRow('assistant', displayText) || {};
     if (!row || !bubble) return;
@@ -635,9 +743,10 @@ function renderUnifiedDiff(diff) {
       inlineRetry.className = 'retry-inline-btn';
       inlineRetry.textContent = 'Retry';
       inlineRetry.onclick = () => {
-        if (!promptInput) return;
-        promptInput.value = raw;
-        sendPrompt();
+        lastFullPrompt = raw;
+        lastAskOptions = { ...getModeFlags(), model: modelSelect ? modelSelect.value : undefined };
+        isRetryResponse = true;
+        retryLastQuery();
       };
       userRow.bubble.appendChild(inlineRetry);
     }
@@ -672,6 +781,7 @@ function renderUnifiedDiff(diff) {
 
   function retryLastQuery() {
     if (!lastFullPrompt) return;
+    isRetryResponse = true;
     setLoading(true, 'Retrying...');
     vscode.postMessage({
       type: 'ask',
@@ -1268,24 +1378,40 @@ function renderUnifiedDiff(diff) {
         break;
       }
       case 'stream-chunk': {
-        // Token-by-token streaming for basic chat mode — dismiss loading on first chunk
-        if (message.first) setLoading(false);
         const chunk = message.content || '';
         if (message.first) {
-          // Create a new message bubble for the stream
-          const { row, bubble } = createMessageRow('assistant', '') || {};
-          if (bubble) {
-            bubble.id = 'streaming-bubble';
-            bubble.innerHTML = '';
-            const textNode = document.createElement('span');
-            textNode.className = 'streaming-text';
-            textNode.textContent = chunk;
-            bubble.appendChild(textNode);
-            // Add a blinking cursor
-            const cursor = document.createElement('span');
-            cursor.className = 'streaming-cursor';
-            cursor.textContent = '▌';
-            bubble.appendChild(cursor);
+          setLoading(false);
+          if (isRetryResponse && lastAssistantRow && lastAssistantBubble) {
+            const panel2 = prepareLastAssistantForStreamingV2();
+            isRetryResponse = false;
+            if (panel2) {
+              const streamContainer = document.createElement('div');
+              streamContainer.id = 'streaming-bubble';
+              const textNode = document.createElement('span');
+              textNode.className = 'streaming-text';
+              textNode.textContent = chunk;
+              const cursor = document.createElement('span');
+              cursor.className = 'streaming-cursor';
+              cursor.textContent = '▌';
+              streamContainer.appendChild(textNode);
+              streamContainer.appendChild(cursor);
+              panel2.appendChild(streamContainer);
+            }
+          } else {
+            isRetryResponse = false;
+            const { row, bubble } = createMessageRow('assistant', '') || {};
+            if (bubble) {
+              bubble.id = 'streaming-bubble';
+              bubble.innerHTML = '';
+              const textNode = document.createElement('span');
+              textNode.className = 'streaming-text';
+              textNode.textContent = chunk;
+              bubble.appendChild(textNode);
+              const cursor = document.createElement('span');
+              cursor.className = 'streaming-cursor';
+              cursor.textContent = '▌';
+              bubble.appendChild(cursor);
+            }
           }
         } else {
           const bubble = document.getElementById('streaming-bubble');
@@ -1298,13 +1424,11 @@ function renderUnifiedDiff(diff) {
         break;
       }
       case 'stream-end': {
-        // Streaming done — finalize the bubble with rendered markdown
         const bubble = document.getElementById('streaming-bubble');
         if (bubble) {
           const cursor = bubble.querySelector('.streaming-cursor');
           if (cursor) cursor.remove();
           bubble.removeAttribute('id');
-          // Re-render with markdown
           const fullContent = message.content || '';
           bubble.innerHTML = renderMarkdownToHtml(fullContent);
         }
