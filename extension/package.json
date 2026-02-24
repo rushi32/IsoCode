@@ -5,7 +5,7 @@
     "publisher": "isocode",
     "repository": {
         "type": "git",
-        "url": "https://github.com/isocode/isocode-local"
+        "url": "https://github.com/rushi32/IsoCode"
     },
     "version": "0.0.7",
     "engines": {
