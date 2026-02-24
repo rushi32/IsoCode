@@ -12,9 +12,7 @@
 
 ![IsoCode chat interface in VS Code sidebar](assets/isocode-ui.png)
 
-**Demo video (≈1 min)** — 
-
-  <video src="assets/IsoCode-demo.mp4" controls width="640"></video>
+**Demo video (≈1 min): [Watch here](assets/IsoCode-demo.mp4)**
 
 ## What it does
 
