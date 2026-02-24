@@ -354,12 +354,21 @@ async function runAgent({
     agentPlus = false,
     workspaceRoot,
     send,
-    signal,
     maxSteps = 12
 }) {
     let state = activeAgents.get(sessionId);
 
+    // Resume (approve/reject) with no active session — e.g. server restarted or wrong sessionId
+    if (decision != null && !state) {
+        send({ type: 'final', content: 'No active agent session to resume. Start a new request.' });
+        return;
+    }
+
     // Handle approval / rejection of a pending diff
+    if (decision && state && !state.pendingDiff) {
+        send({ type: 'final', content: 'No pending diff to approve or reject. Send a new message to continue.' });
+        return;
+    }
     if (decision && state?.pendingDiff) {
         if (decision === 'approve') {
             const pd = state.pendingDiff;
@@ -458,7 +467,8 @@ async function runAgent({
             totalTasks: 0,
             consecutiveFinals: 0,
             compactCount: 0,
-            consecutiveStepsWithoutAction: 0
+            consecutiveStepsWithoutAction: 0,
+            stopRequested: false
         };
         activeAgents.set(sessionId, state);
         console.log(`[Agent] Session ${sessionId} initialized (${agentPlus ? 'Agent+' : 'Agent'}): projectMap=${projectMap.length}c, rules=${projectRules.length}c, autoCtx=${autoCtx.length}c`);
@@ -483,9 +493,10 @@ async function runAgent({
     // --- ReAct Loop ---
     // No fixed step limit for local use; stop on: final, diff_request (Agent), no-progress, or safety cap
     for (; state.step < maxSteps; state.step++) {
-        if (signal?.aborted) {
+        if (state.stopRequested) {
             saveContextCheckpoint(state, resolvedModel);
             send({ type: 'final', content: 'Agent stopped by user.' });
+            state.stopRequested = false;
             return;
         }
         if ((state.consecutiveStepsWithoutAction || 0) >= NO_PROGRESS_LIMIT) {
@@ -851,14 +862,14 @@ async function switchModel(sessionId, newModel, send) {
     return { ok: true, from: oldModel, to: newModel, messages: messages.length };
 }
 
-async function resumeAgent({ sessionId, send, signal, model }) {
+async function resumeAgent({ sessionId, send, model }) {
     const state = activeAgents.get(sessionId);
     if (!state) {
         send({ type: 'final', content: 'No active agent session.' });
         return;
     }
     // Resume continues the ReAct loop from where it left off
-    await runAgent({ sessionId, send, signal, model });
+    await runAgent({ sessionId, send, model });
 }
 
 /**

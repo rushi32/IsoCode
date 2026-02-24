@@ -239,15 +239,11 @@ app.post('/chat', async (req, res) => {
     res.setHeader('Connection', 'keep-alive');
     res.flushHeaders?.();
 
-    const controller = new AbortController();
-    req.on('close', () => {
-        controller.abort();
-        console.log('[Server] Client disconnected (stream closed)');
-    });
-
     const send = (obj) => {
         try {
-            res.write(`data: ${JSON.stringify(obj)}\n\n`);
+            if (!res.writableEnded) {
+                res.write(`data: ${JSON.stringify(obj)}\n\n`);
+            }
         } catch { }
     };
 
@@ -261,7 +257,6 @@ app.post('/chat', async (req, res) => {
             agentPlus: !!agentPlus,
             workspaceRoot,
             send,
-            signal: controller.signal,
             maxSteps: 500
         });
         console.log('[Server] Agent finished');
@@ -270,6 +265,18 @@ app.post('/chat', async (req, res) => {
         send({ type: 'final', content: String(err) });
     } finally {
         res.end();
+    }
+});
+
+app.post('/stop-agent', (req, res) => {
+    const { sessionId = 'default' } = req.body || {};
+    const state = activeAgents.get(sessionId);
+    if (state) {
+        state.stopRequested = true;
+        console.log(`[Server] Stop requested for session: ${sessionId}`);
+        res.json({ ok: true });
+    } else {
+        res.json({ ok: false, error: 'No active session' });
     }
 });
 

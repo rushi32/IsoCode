@@ -957,7 +957,8 @@ function renderUnifiedDiff(diff) {
     vscode.postMessage({
       type: 'agent-decision',
       decision: 'reject',
-      sessionId: msg.sessionId
+      sessionId: msg.sessionId,
+      filePath: msg.filePath
     });
   };
 
@@ -1000,7 +1001,7 @@ function renderUnifiedDiff(diff) {
   }
   if (stopBtn) {
     stopBtn.addEventListener('click', () => {
-      vscode.postMessage({ type: 'stop-agent' });
+      vscode.postMessage({ type: 'stop-agent', sessionId: getSessionId() });
       setLoading(false, '');
     });
   }

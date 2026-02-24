@@ -6,6 +6,16 @@
 
 ---
 
+## Screenshot & Demo
+
+**IsoCode in VS Code — Chat, Agent, and Agent+**
+
+![IsoCode chat interface in VS Code sidebar](assets/isocode-ui.png)
+
+**Demo video (≈1 min)** — 
+
+  <video src="assets/IsoCode-demo.mp4" controls width="640"></video>
+
 ## What it does
 
 IsoCode is a **local-first** coding agent inside VS Code. You get:
@@ -15,6 +25,22 @@ IsoCode is a **local-first** coding agent inside VS Code. You get:
 - **Agent+** — Same agent with full autonomy: auto-applies edits, more steps, no approval prompts.
 
 All inference runs on your machine (Ollama, LM Studio) or your own API key (OpenAI). The server and extension are open source; no telemetry, no locked-in cloud.
+
+---
+
+## Why IsoCode vs other AI IDEs
+
+Many IDEs and coding assistants rely on **cloud APIs and API keys**: your code and requests go to third-party services, usage is metered, and you depend on their pricing and policies.
+
+| | **IsoCode** | **Other AI IDEs (cloud / API-key based)** |
+|---|-------------|------------------------------------------|
+| **Where it runs** | VS Code (or any editor with the extension) | Often tied to a specific IDE or SaaS |
+| **AI** | Your own models (Ollama, LM Studio) or your API key | Vendor’s cloud models; optional bring-your-own in some |
+| **Cost** | Free (you pay for hardware or your own API if you choose) | Typically subscription or per-use API costs |
+| **Privacy** | Code stays on your machine or your API; no required cloud | Code and prompts may be sent to vendor services |
+| **Lock-in** | Open source; switch editors or models anytime | Tied to vendor product and pricing |
+
+Use **IsoCode** when you want a local-first agent (plan → edit → approve) inside your editor, with no required subscription and no required cloud. Use other AI IDEs when you prefer their integrated experience and are fine with their API keys and data policies.
 
 ---
 
@@ -86,6 +112,7 @@ Project-specific instructions: add `.isocode/rules.md` in your workspace. Option
 
 ```
 IsoCode/
+├── assets/              # Screenshot & demo video 
 ├── server/              # Agent server (Node)
 │   ├── index.js         # HTTP + SSE
 │   ├── agent.js         # ReAct loop
