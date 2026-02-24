@@ -108,6 +108,8 @@ function renderUnifiedDiff(diff) {
   const promptInput = document.getElementById('prompt-input');
   /** @type {HTMLButtonElement | null} */
   const sendBtn = document.getElementById('send-btn');
+  /** @type {HTMLButtonElement | null} */
+  const stopBtn = document.getElementById('stop-btn');
   /** @type {HTMLDivElement | null} */
   const chatHistory = document.getElementById('chat-history');
   /** @type {HTMLDivElement | null} */
@@ -236,6 +238,8 @@ function renderUnifiedDiff(diff) {
     } else if (thinkingLabel && isLoading) {
       thinkingLabel.textContent = 'Thinking...';
     }
+    if (stopBtn) stopBtn.classList.toggle('stop-btn-hidden', !isLoading);
+    if (sendBtn) sendBtn.classList.toggle('send-btn-hidden', isLoading);
     // Auto-scroll so the indicator is visible
     if (isLoading) scrollChatToBottom();
   }
@@ -883,6 +887,12 @@ function renderUnifiedDiff(diff) {
     sendBtn.addEventListener('click', sendPrompt);
   } else {
     console.error('[IsoCode] send button not found');
+  }
+  if (stopBtn) {
+    stopBtn.addEventListener('click', () => {
+      vscode.postMessage({ type: 'stop-agent' });
+      setLoading(false, '');
+    });
   }
   if (promptInput) {
     promptInput.addEventListener('keydown', (e) => {

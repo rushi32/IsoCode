@@ -781,6 +781,14 @@ body {
   overflow: hidden;
 }
 
+.stop-btn-hidden {
+  display: none !important;
+}
+
+.send-btn-hidden {
+  display: none !important;
+}
+
 /* Thinking bubble — IsoCode style */
 .thinking-bubble {
   display: flex;

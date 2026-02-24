@@ -13,6 +13,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider, vscode.Dispo
     private activeContextDebounce?: NodeJS.Timeout;
     private lastUsedModel?: string;
     private lastUsedAgentPlus: boolean = false;
+    private currentChatAbortController: AbortController | null = null;
     _view?: vscode.WebviewView;
 
     constructor(private readonly _extensionUri: vscode.Uri) {
@@ -175,6 +176,14 @@ export class SidebarProvider implements vscode.WebviewViewProvider, vscode.Dispo
             this.output.appendLine(`IsoCode: received message type=${data?.type ?? 'undefined'}`);
             if (data?.type === 'ask') this.output.show();
             switch (data?.type) {
+                case "stop-agent": {
+                    if (this.currentChatAbortController) {
+                        this.currentChatAbortController.abort();
+                        this.currentChatAbortController = null;
+                        this.output.appendLine('IsoCode: user stopped agent');
+                    }
+                    break;
+                }
                 case "ask": {
                     if (!data.value) {
                         webviewView.webview.postMessage({ type: 'addResponse', value: '❌ No message to send.' });
@@ -182,6 +191,8 @@ export class SidebarProvider implements vscode.WebviewViewProvider, vscode.Dispo
                     }
                     const serverUrl = this.getServerUrl();
                     const endpoint = serverUrl + '/chat';
+                    this.currentChatAbortController = new AbortController();
+                    const signal = this.currentChatAbortController.signal;
                     // Track the model and mode for agent resume
                     if (data.model) { this.lastUsedModel = data.model; }
                     this.lastUsedAgentPlus = !!(data as any).agentPlus;
@@ -207,6 +218,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider, vscode.Dispo
                                     data: payload,
                                     responseType: 'stream',
                                     timeout: 120000,
+                                    signal,
                                     headers: { 'Content-Type': 'application/json', accept: 'text/event-stream' }
                                 });
                                 let fullResponse = '';
@@ -248,10 +260,16 @@ export class SidebarProvider implements vscode.WebviewViewProvider, vscode.Dispo
                                     streamRes.data.on('error', reject);
                                 });
                             } catch (streamErr: any) {
+                                if (axios.isCancel(streamErr)) {
+                                    this.currentChatAbortController = null;
+                                    webviewView.webview.postMessage({ type: 'addResponse', value: '⏹ Stopped.' });
+                                    break;
+                                }
                                 // Fallback to non-streaming if SSE fails
                                 this.output.appendLine('IsoCode: stream failed, falling back to non-streaming: ' + streamErr.message);
                                 const response = await axios.post(endpoint, payload, {
                                     timeout: 120000,
+                                    signal,
                                     headers: { 'Content-Type': 'application/json' }
                                 });
                                 const resData = response.data;
@@ -269,6 +287,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider, vscode.Dispo
                                 data: payload,
                                 responseType: 'stream',
                                 timeout: agentTimeout,
+                                signal,
                                 headers: { 'Content-Type': 'application/json', accept: 'text/event-stream' }
                             });
                             let pending = '';
@@ -314,6 +333,11 @@ export class SidebarProvider implements vscode.WebviewViewProvider, vscode.Dispo
                             });
                         }
                     } catch (error: any) {
+                        if (axios.isCancel(error)) {
+                            this.currentChatAbortController = null;
+                            webviewView.webview.postMessage({ type: 'addResponse', value: '⏹ Stopped.' });
+                            break;
+                        }
                         const details = error.response?.data?.details;
                         const errObj = error.response?.data?.error;
                         const hint = error.response?.data?.hint || '';
@@ -329,6 +353,8 @@ export class SidebarProvider implements vscode.WebviewViewProvider, vscode.Dispo
                         }
                         this.output.appendLine(`IsoCode: chat error: ${userMsg}`);
                         webviewView.webview.postMessage({ type: 'addResponse', value: '❌ ' + userMsg });
+                    } finally {
+                        this.currentChatAbortController = null;
                     }
                     break;
                 }
@@ -1118,6 +1144,9 @@ export class SidebarProvider implements vscode.WebviewViewProvider, vscode.Dispo
                         
                         <div class="input-wrapper">
                             <textarea id="prompt-input" placeholder="Ask IsoCode or type @ for context..."></textarea>
+                            <button id="stop-btn" class="md-icon-button stop-btn-hidden" title="Stop">
+                                <span class="material-symbols-outlined">stop_circle</span>
+                            </button>
                             <button id="send-btn" class="md-icon-button">
                                 <span class="material-symbols-outlined">send</span>
                             </button>

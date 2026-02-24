@@ -241,6 +241,7 @@ app.post('/chat', async (req, res) => {
 
     const controller = new AbortController();
     req.on('close', () => {
+        controller.abort();
         console.log('[Server] Client disconnected (stream closed)');
     });
 
