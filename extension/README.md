@@ -133,7 +133,7 @@ IsoCode/
 ## Docs
 
 - [Contributing](CONTRIBUTING.md)
-- [Publishing (GitHub, VS Code Marketplace)](OPEN_SOURCE_GUIDE.md)
+- [Publishing (GitHub, VS Code Marketplace)](https://marketplace.visualstudio.com/items?itemName=isocode.isocode-local)
 
 ---
 
