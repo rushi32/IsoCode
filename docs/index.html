@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IsoCode Documentation</title>
+    <style>
+        :root {
+            --bg: #0d1117;
+            --bg-secondary: #161b22;
+            --border: #30363d;
+            --text: #e6edf3;
+            --text-muted: #8b949e;
+            --accent: #58a6ff;
+            --accent-hover: #79b8ff;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+        }
+        .layout {
+            display: flex;
+            min-height: 100vh;
+        }
+        nav {
+            width: 260px;
+            min-width: 260px;
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border);
+            padding: 1.5rem 0;
+            position: sticky;
+            top: 0;
+            height: 100vh;
+            overflow-y: auto;
+        }
+        nav a {
+            display: block;
+            padding: 0.4rem 1.5rem;
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 0.9rem;
+        }
+        nav a:hover { color: var(--accent); }
+        nav .nav-section { padding: 0.5rem 1.5rem; font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); }
+        main {
+            flex: 1;
+            padding: 2rem 3rem 4rem;
+            max-width: 800px;
+        }
+        h1 { font-size: 2rem; margin-top: 0; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
+        h2 { font-size: 1.35rem; margin-top: 2.5rem; color: var(--text); }
+        h3 { font-size: 1.1rem; margin-top: 1.5rem; }
+        a { color: var(--accent); }
+        a:hover { color: var(--accent-hover); }
+        code { background: var(--bg-secondary); padding: 0.15em 0.4em; border-radius: 4px; font-size: 0.9em; }
+        pre { background: var(--bg-secondary); padding: 1rem; border-radius: 6px; overflow-x: auto; border: 1px solid var(--border); }
+        pre code { padding: 0; background: none; }
+        table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+        th, td { border: 1px solid var(--border); padding: 0.6rem 0.8rem; text-align: left; }
+        th { background: var(--bg-secondary); }
+        ul, ol { margin: 0.5rem 0 1rem 1.5rem; }
+        .badge { display: inline-block; padding: 0.2em 0.5em; font-size: 0.75rem; border-radius: 4px; background: var(--border); color: var(--text-muted); }
+        @media (max-width: 768px) {
+            .layout { flex-direction: column; }
+            nav { width: 100%; height: auto; position: relative; }
+            main { padding: 1rem 1.5rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="layout">
+        <nav>
+            <div class="nav-section">Overview</div>
+            <a href="#introduction">Introduction</a>
+            <a href="#requirements">Requirements</a>
+            <a href="#installation">Installation</a>
+            <div class="nav-section">Usage</div>
+            <a href="#modes">Modes (Chat, Agent, Agent+)</a>
+            <a href="#context">Context &amp; @-mentions</a>
+            <a href="#slash-commands">Slash commands</a>
+            <a href="#explain-selection">Explain Selection</a>
+            <div class="nav-section">Reference</div>
+            <a href="#tools">Tools</a>
+            <a href="#configuration">Configuration</a>
+            <a href="#project-rules">Project rules</a>
+            <a href="#security">Security</a>
+            <div class="nav-section">Links</div>
+            <a href="../README.md">README</a>
+            <a href="../CONTRIBUTING.md">Contributing</a>
+        </nav>
+        <main>
+            <h1>IsoCode Documentation</h1>
+            <p>Local agentic AI coding assistant for VS Code. ReAct-style agent that runs on Ollama, LM Studio, or any OpenAI-compatible API. No cloud required.</p>
+
+            <h2 id="introduction">Introduction</h2>
+            <p>IsoCode is a <strong>local-first</strong> coding agent that lives inside VS Code. It can answer questions (Chat), run multi-step tasks with your approval on file edits (Agent), or work autonomously (Agent+). All inference runs on your machine or your own API key.</p>
+
+            <h2 id="requirements">Requirements</h2>
+            <ul>
+                <li><strong>Node.js</strong> 18+</li>
+                <li><strong>VS Code</strong> 1.85+</li>
+                <li><strong>LLM</strong>: <a href="https://ollama.ai/">Ollama</a>, <a href="https://lmstudio.ai/">LM Studio</a>, or any OpenAI-compatible endpoint</li>
+            </ul>
+
+            <h2 id="installation">Installation</h2>
+            <h3>1. Clone and run the server</h3>
+            <pre><code>git clone https://github.com/rushi32/IsoCode.git
+cd IsoCode
+npm install
+cp .env.example .env
+# Edit .env if needed (LLM_API_BASE, LLM_MODEL_ID)
+npm start</code></pre>
+            <p>Server runs at <code>http://localhost:3000</code> by default.</p>
+            <h3>2. Run the extension (development)</h3>
+            <pre><code>cd IsoCode/extension
+npm install
+npm run compile</code></pre>
+            <p>Open the <code>extension</code> folder in VS Code → press <strong>F5</strong> (Extension Development Host) → open the <strong>IsoCode</strong> sidebar from the activity bar.</p>
+            <h3>3. Configure (optional)</h3>
+            <p><strong>Server:</strong> <code>.env</code> — <code>LLM_API_BASE</code>, <code>LLM_MODEL_ID</code>, <code>PORT</code>.</p>
+            <p><strong>Extension:</strong> VS Code Settings → search “IsoCode” — set <strong>Server URL</strong> if not <code>http://localhost:3000</code>.</p>
+
+            <h2 id="modes">Modes (Chat, Agent, Agent+)</h2>
+            <table>
+                <thead>
+                    <tr><th>Mode</th><th>Description</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><strong>Chat</strong></td><td>Direct Q&amp;A with streaming. No tools, no file edits. Fast answers.</td></tr>
+                    <tr><td><strong>Agent</strong></td><td>ReAct loop: plan → act (read/write, search, shell, git, etc.) → observe. Proposes file edits as diffs; you approve or reject each change.</td></tr>
+                    <tr><td><strong>Agent+</strong></td><td>Same as Agent but fully autonomous: auto-applies all edits, more steps, no approval prompts.</td></tr>
+                </tbody>
+            </table>
+
+            <h2 id="context">Context &amp; @-mentions</h2>
+            <p>You can add files to context before sending a message:</p>
+            <ul>
+                <li>Type <code>@</code> in the input to open the context picker and attach files.</li>
+                <li>Open files in the editor are available as context when you open the IsoCode sidebar.</li>
+                <li>Project rules are loaded from <code>.isocode/rules.md</code>, <code>AGENTS.md</code>, and <code>.cursorrules</code>.</li>
+            </ul>
+
+            <h2 id="slash-commands">Slash commands</h2>
+            <p>In the chat input you can use:</p>
+            <ul>
+                <li><code>/new</code> — Start a new conversation</li>
+                <li><code>/compact</code> — Compress conversation context (frees token space)</li>
+                <li><code>/sessions</code> — List conversation history</li>
+                <li><code>/clear</code> — Clear chat display</li>
+                <li><code>/help</code> — Show command list and mode descriptions</li>
+            </ul>
+
+            <h2 id="explain-selection">Explain Selection</h2>
+            <p>Select code in the editor and run the command <strong>IsoCode: Explain Selection</strong> (Command Palette: <code>Ctrl+Shift+P</code> / <code>Cmd+Shift+P</code>). The selected code is pasted into the IsoCode prompt with “Explain the following code:” so you can get a quick explanation.</p>
+
+            <h2 id="tools">Tools</h2>
+            <p>The agent can use these tools (in Agent and Agent+ modes):</p>
+            <ul>
+                <li><strong>Files:</strong> <code>read_file</code>, <code>write_file</code>, <code>replace_in_file</code>, <code>apply_diff</code>, <code>list_files</code>, <code>glob_files</code></li>
+                <li><strong>Search:</strong> <code>codebase_search</code>, <code>search_files</code></li>
+                <li><strong>Shell &amp; Git:</strong> <code>run_shell</code>, <code>git_status</code>, <code>git_diff</code>, <code>git_commit</code>, <code>git_log</code>, <code>git_branch</code></li>
+                <li><strong>Code quality:</strong> <code>run_lint</code>, <code>run_tests</code></li>
+                <li><strong>Memory:</strong> <code>memory_read</code>, <code>memory_write</code></li>
+                <li><strong>Browser:</strong> screenshot, click, type, extract (Agent+ or when permitted)</li>
+                <li><strong>MCP:</strong> Tools from configured MCP servers</li>
+            </ul>
+
+            <h2 id="configuration">Configuration</h2>
+            <h3>Server (.env)</h3>
+            <p>Copy <code>.env.example</code> to <code>.env</code> and adjust. Required: <code>LLM_API_BASE</code>, <code>LLM_MODEL_ID</code> (or leave empty to use UI). Optional:</p>
+            <ul>
+                <li><code>LLM_API_BASE</code> — e.g. <code>http://localhost:11434/v1</code> (Ollama)</li>
+                <li><code>LLM_MODEL_ID</code> — Default model (optional; can be chosen in UI)</li>
+                <li><code>PORT</code> — Server port (default 3000)</li>
+                <li><code>CONTEXT_WINDOW_SIZE</code> — Context size (default 16384)</li>
+                <li><code>MAX_HISTORY_MESSAGES</code> — History cap (default 30)</li>
+                <li><code>TEMPERATURE</code> — LLM temperature (default 0.7)</li>
+                <li><code>SWARM_MAX_WORKERS</code> — Agent+ swarm: max parallel workers (default 2). If swarm fails (e.g. memory/hardware), the run automatically continues in single-agent mode.</li>
+                <li><code>SWARM_VISION_MODEL</code> — Optional fallback. Model ID for vision subtasks if no vision-capable model is found in the provider. By default, the server picks the best model per subtask from available models (Ollama/LM Studio): vision/screenshot tasks → vision model (llava, qwen-vl, etc.), coding tasks → coder model (qwen-coder, codellama, etc.), else → default.</li>
+                <li><code>SYSTEM_PROMPT_PATH</code> — Path to custom system prompt file (optional)</li>
+                <li><code>PERMISSIONS_SHELL</code>, <code>PERMISSIONS_WRITE</code>, <code>PERMISSIONS_EDIT</code> — <code>ask</code>, <code>always</code>, or <code>never</code></li>
+            </ul>
+            <h3>Extension (VS Code settings)</h3>
+            <ul>
+                <li><strong>Server URL</strong> — IsoCode server URL</li>
+                <li><strong>LLM Provider</strong> — ollama, lmstudio, openai, or auto</li>
+                <li><strong>MCP</strong> — Enable and configure MCP servers</li>
+            </ul>
+
+            <h2 id="project-rules">Project rules</h2>
+            <p>Put project-specific instructions in <code>.isocode/rules.md</code> in your workspace. The agent receives these rules in its system context and should follow them. You can also use <code>AGENTS.md</code> or <code>.cursorrules</code>; they are loaded as project rules.</p>
+
+            <h2 id="security">Security</h2>
+            <ul>
+                <li><strong>Path traversal:</strong> File paths are validated to stay inside the workspace. Requests that escape the workspace are rejected.</li>
+                <li><strong>Local only:</strong> By default the server and LLM run locally; no code or prompts are sent to the cloud unless you point to a remote API.</li>
+                <li><strong>Permissions:</strong> In Agent mode you approve or reject file edits. In Agent+ the agent can apply edits automatically; use with care.</li>
+            </ul>
+
+            <p style="margin-top: 3rem; color: var(--text-muted); font-size: 0.9rem;">
+                IsoCode — local-first AI coding agent for VS Code. <a href="../README.md">README</a> · <a href="../LICENSE">MIT License</a>
+            </p>
+        </main>
+    </div>
+</body>
+</html>

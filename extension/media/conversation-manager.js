@@ -152,13 +152,14 @@ class ConversationManager {
             right: -300px;
             width: 300px;
             height: 100%;
-            background: var(--md-sys-color-surface);
+            background: var(--vscode-editor-background, #1e1e1e) !important;
+            background-color: var(--vscode-editor-background, #1e1e1e) !important;
             border-left: 1px solid var(--border-color);
             transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             z-index: 10000;
             display: flex;
             flex-direction: column;
-            box-shadow: var(--md-elevation-4);
+            box-shadow: -4px 0 16px rgba(0,0,0,0.3);
         `;
 
         const header = document.createElement('div');
@@ -168,6 +169,8 @@ class ConversationManager {
             display: flex;
             justify-content: space-between;
             align-items: center;
+            background: var(--vscode-editor-background, #1e1e1e) !important;
+            background-color: var(--vscode-editor-background, #1e1e1e) !important;
         `;
         header.innerHTML = `
             <span style="font-weight: 500; font-size: 16px;">Chat History</span>
@@ -177,22 +180,24 @@ class ConversationManager {
         `;
 
         const list = document.createElement('div');
-        list.style.cssText = 'flex: 1; overflow-y: auto; padding: 12px;';
+        list.style.cssText = 'flex: 1; overflow-y: auto; padding: 12px; background: var(--vscode-editor-background, #1e1e1e) !important; background-color: var(--vscode-editor-background, #1e1e1e) !important;';
 
         const conversations = this.getAllConversations();
         conversations.forEach(conv => {
             const item = document.createElement('div');
             const isActive = conv.id === this.currentConversationId;
+            const itemBg = isActive ? 'var(--vscode-list-activeSelectionBackground, var(--accent))' : 'var(--vscode-editor-background, #1e1e1e)';
             item.style.cssText = `
                 padding: 12px 16px;
                 border-radius: 12px;
                 cursor: pointer;
                 margin-bottom: 8px;
-                background: ${isActive ? 'var(--md-sys-color-primary-container)' : 'transparent'};
-                color: ${isActive ? 'var(--md-sys-color-on-primary-container)' : 'var(--text-primary)'};
+                background: ${itemBg} !important;
+                background-color: ${itemBg} !important;
+                color: ${isActive ? 'var(--vscode-list-activeSelectionForeground, var(--text-primary))' : 'var(--text-primary)'};
                 transition: all 0.2s ease;
                 position: relative;
-                border: 1px solid ${isActive ? 'var(--accent)' : 'transparent'};
+                border: 1px solid ${isActive ? 'var(--accent)' : 'var(--border-color, transparent)'};
             `;
 
             const date = new Date(conv.updatedAt);

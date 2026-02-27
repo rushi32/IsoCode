@@ -87,6 +87,8 @@ module.exports = {
 
     CONTEXT_WINDOW_SIZE: process.env.CONTEXT_WINDOW_SIZE || userConfig.CONTEXT_WINDOW_SIZE || 16384,
     MAX_HISTORY_MESSAGES: process.env.MAX_HISTORY_MESSAGES || userConfig.MAX_HISTORY_MESSAGES || 30,
+    SWARM_MAX_WORKERS: parseInt(process.env.SWARM_MAX_WORKERS || userConfig.SWARM_MAX_WORKERS || '2', 10) || 2,
+    SWARM_VISION_MODEL: process.env.SWARM_VISION_MODEL || userConfig.SWARM_VISION_MODEL || null,
     TEMPERATURE: process.env.TEMPERATURE || userConfig.TEMPERATURE || 0.7,
     SYSTEM_PROMPT_PATH: process.env.SYSTEM_PROMPT_PATH || userConfig.SYSTEM_PROMPT_PATH || null,
 

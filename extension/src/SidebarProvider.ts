@@ -29,6 +29,11 @@ export class SidebarProvider implements vscode.WebviewViewProvider, vscode.Dispo
         this.output?.dispose();
     }
 
+    /** Append text to the webview prompt input (e.g. for Explain Selection command). */
+    appendToPrompt(text: string): void {
+        this._view?.webview.postMessage({ type: 'append-to-prompt', value: text });
+    }
+
     getNonce() {
         let text = '';
         const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -299,6 +304,13 @@ export class SidebarProvider implements vscode.WebviewViewProvider, vscode.Dispo
                                         }
                                         if (parsed.type === 'diff_request') {
                                             sawDiffRequest = true;
+                                        }
+                                        if (parsed.type === 'open_file' && typeof parsed.path === 'string') {
+                                            const root = vscode.workspace.workspaceFolders?.[0]?.uri?.fsPath;
+                                            if (root) {
+                                                const fullPath = path.join(root, parsed.path);
+                                                vscode.window.showTextDocument(vscode.Uri.file(fullPath), { preview: false }).then(() => { }, () => { });
+                                            }
                                         }
                                         webviewView.webview.postMessage(parsed);
                                     } catch {
@@ -986,7 +998,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider, vscode.Dispo
         const modelsJson = JSON.stringify(initialModels);
 
         return `<!DOCTYPE html>
-            <html lang="en">
+            <html lang="en" style="background: var(--vscode-editor-background, #1e1e1e) !important;">
             <head>
                 <meta charset="UTF-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -1006,8 +1018,8 @@ export class SidebarProvider implements vscode.WebviewViewProvider, vscode.Dispo
                     window.__INITIAL_MODELS__ = ${modelsJson};
                 </script>
             </head>
-            <body>
-                <div class="chat-container">
+            <body style="background: var(--vscode-editor-background, #1e1e1e) !important; background-color: var(--vscode-editor-background, #1e1e1e) !important;">
+                <div class="chat-container" style="background: var(--vscode-editor-background, #1e1e1e) !important;">
                     <div class="header-controls">
                          <div class="logo-area">
                             <img src="${iconUri}" alt="IsoCode" class="app-logo">
@@ -1026,7 +1038,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider, vscode.Dispo
                          </div>
                     </div>
 
-                    <div id="chat-history"></div>
+                    <div id="chat-history" style="background: var(--vscode-editor-background, #1e1e1e) !important; background-color: var(--vscode-editor-background, #1e1e1e) !important;"></div>
                     <div id="loading-indicator" class="loading-hidden">
                         <div class="thinking-bubble">
                             <div class="typing-indicator">

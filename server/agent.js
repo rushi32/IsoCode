@@ -6,9 +6,9 @@
 
 const activeAgents = new Map();
 
-const { callLLM } = require('./llm');
+const { callLLM, listModels } = require('./llm');
 const { runTool, TOOL_DEFINITIONS } = require('./tools');
-const { MAX_HISTORY_MESSAGES, CONTEXT_WINDOW_SIZE, LLM_PROVIDER } = require('./config.js');
+const { MAX_HISTORY_MESSAGES, CONTEXT_WINDOW_SIZE, LLM_PROVIDER, SWARM_MAX_WORKERS, SWARM_VISION_MODEL } = require('./config.js');
 const { trimForContextWindow, truncateToolResult, shouldAutoCompact, compactConversation, estimateMessagesTokens, saveSessionSummary, buildMemoryContext } = require('./context-manager.js');
 const { saveConversation, getProjectContextSummary, discoverProjectType } = require('./store.js');
 const { getIndex, buildProjectMap, gatherAutoContext } = require('./codebase.js');
@@ -16,6 +16,17 @@ const { loadProjectRules } = require('./rules.js');
 const fs = require('fs');
 const path = require('path');
 const { createTwoFilesPatch } = require('diff');
+
+/** Ensure path stays inside workspace (prevents path traversal). */
+function resolvePathInWorkspace(workspaceRoot, filePath) {
+    const root = path.resolve(workspaceRoot || process.cwd());
+    const resolved = path.resolve(root, String(filePath).replace(/^\/+/, ''));
+    const normalizedRoot = root + path.sep;
+    if (resolved !== root && !resolved.startsWith(normalizedRoot)) {
+        throw new Error(`Security: path outside workspace denied for: ${filePath}`);
+    }
+    return resolved;
+}
 
 const CONTEXT_BUDGET = typeof CONTEXT_WINDOW_SIZE === 'number' && CONTEXT_WINDOW_SIZE > 0
     ? CONTEXT_WINDOW_SIZE
@@ -193,6 +204,10 @@ PERMISSIONS — Agent+ Mode:
 - You have FULL AUTONOMY. Complete the task end-to-end.
 - Do NOT stop for approval. Do NOT emit diff_request — use write_file or replace_in_file directly.
 - Keep working until EVERY planned task is DONE.
+
+SWARM (optional): For large tasks with 2+ independent subtasks, delegate:
+{"type":"delegate","tasks":["subtask 1","subtask 2"]}
+The system auto-selects the best model per subtask. Up to ${Math.min(2, SWARM_MAX_WORKERS || 2)} workers run in parallel.
 `
         : `
 PERMISSIONS — Agent Mode:
@@ -468,7 +483,8 @@ async function runAgent({
             consecutiveFinals: 0,
             compactCount: 0,
             consecutiveStepsWithoutAction: 0,
-            stopRequested: false
+            stopRequested: false,
+            swarmDisabled: false
         };
         activeAgents.set(sessionId, state);
         console.log(`[Agent] Session ${sessionId} initialized (${agentPlus ? 'Agent+' : 'Agent'}): projectMap=${projectMap.length}c, rules=${projectRules.length}c, autoCtx=${autoCtx.length}c`);
@@ -485,7 +501,7 @@ async function runAgent({
     state.consecutiveStepsWithoutAction = 0;
     state._compactedThisRun = false;
 
-    const NO_PROGRESS_LIMIT = 12;  // stop if this many steps in a row with no tool/diff action
+    const NO_PROGRESS_LIMIT = 10;  // stop if this many steps in a row with no tool/diff action
 
     const resolvedModel = model || state.model || null;
     const { messages } = state;
@@ -644,6 +660,35 @@ async function runAgent({
             }
         }
 
+        // Agent+ swarm: delegate subtasks to workers (GPU-limited concurrency). Fallback to single-agent if swarm fails.
+        if (parsed.type === 'delegate' && state.agentPlus && Array.isArray(parsed.tasks) && parsed.tasks.length > 0) {
+            messages.push({ role: 'assistant', content: JSON.stringify(parsed) });
+            if (state.swarmDisabled) {
+                messages.push({
+                    role: 'user',
+                    content: 'Delegation is disabled (swarm failed earlier, e.g. memory/hardware). Complete the remaining tasks yourself in single-agent mode. Do NOT emit delegate again; use actions and thoughts only.'
+                });
+                send({ type: 'thought', content: 'Continuing in single-agent mode (delegation disabled).' });
+                state.consecutiveStepsWithoutAction = 0;
+                continue;
+            }
+            const maxWorkers = Math.max(1, Math.min(5, SWARM_MAX_WORKERS || 2));
+            send({ type: 'thought', content: `Swarm: delegating ${parsed.tasks.length} subtask(s) (max ${maxWorkers} in parallel).` });
+            const swarmTasks = normalizeSwarmTasks(parsed.tasks);
+            try {
+                await runSwarmWorkers(swarmTasks, state, send, messages, resolvedModel, maxWorkers);
+            } catch (err) {
+                const reason = err && (err.message || String(err));
+                state.swarmDisabled = true;
+                const fallbackMsg = `Swarm failed (${reason}). Switching to single-agent mode for the rest of this run. Continue with your plan using actions and thoughts; do NOT use delegate again.`;
+                messages.push({ role: 'tool', content: JSON.stringify({ type: 'observation', content: fallbackMsg }) });
+                send({ type: 'observation', content: { swarm: false, error: reason, fallback: true } });
+                send({ type: 'thought', content: 'Swarm failed; continuing in single-agent mode.' });
+            }
+            state.consecutiveStepsWithoutAction = 0;
+            continue;
+        }
+
         // Send to UI
         if (parsed.type === 'diff_request') {
             send({ ...parsed, sessionId });
@@ -715,12 +760,195 @@ async function runAgent({
         // thought only — no tool or diff this step; count toward no-progress stop
         state.consecutiveFinals = 0;
         state.consecutiveStepsWithoutAction = (state.consecutiveStepsWithoutAction || 0) + 1;
+
+        // Anti-loop: after 2 consecutive thoughts, nudge the model to take action
+        if (state.consecutiveStepsWithoutAction >= 2) {
+            messages.push({
+                role: 'user',
+                content: 'You have been thinking without acting. Remember: a thought must always be followed by an action. Your next response MUST be {"type":"action","tool":"<tool_name>","args":{...}}. Take action now.'
+            });
+        }
     }
 
     // Safety cap reached (no step limit in normal use; this is a fallback to avoid endless runs)
     saveContextCheckpoint(state, resolvedModel);
     try { await autoSaveWithSummary(sessionId, messages, resolvedModel, state.model); } catch { }
     send({ type: 'final', content: 'Stopped after many steps to avoid long runs. Send a follow-up to continue.' });
+}
+
+/** Task type for picking the best model from available ones (Ollama/LM Studio/etc.). */
+const TASK_TYPE = { VISION: 'vision', CODER: 'coder', GENERAL: 'general' };
+
+/** Patterns (lowercase) that identify vision-capable models. Used to pick a model that can do screenshots/browser. */
+const VISION_MODEL_PATTERNS = [
+    'llava', 'qwen-vl', 'qwen2-vl', 'pixtral', 'minicpm-v', 'bakllava', 'moondream', 'llava-phi', 'cogvlm',
+    'vision', 'multimodal', 'image',
+    'glm4', 'glm-4', 'glm4.7', 'glm-4.7', 'gemma-2', 'gemini', 'gpt-4o', 'gpt-4-vision', 'gpt4o',
+    'claude-3', 'claude.*vision', 'gemini.*vision'
+];
+
+/** Patterns that identify coder/specialist coding models (avoid these for vision tasks when possible). */
+const CODER_MODEL_PATTERNS = ['coder', 'code', 'deepseek-coder', 'starcoder', 'codellama', 'codeqwen', 'qwen.*coder', 'phi.*qwen', 'mistral.*code', 'granite.*code', 'command-r'];
+
+function classifyTaskType(taskText) {
+    if (!taskText || typeof taskText !== 'string') return TASK_TYPE.GENERAL;
+    const t = taskText.toLowerCase();
+    if (/screenshot|browser|vision|image|picture|photo|screen\s*capture|what'?s\s+on\s+(the\s+)?screen|see\s+what'?s\s+displayed|take\s+(a\s+)?(screenshot|picture)|capture\s+(the\s+)?screen|perform_browser|mcp.*browser|localhost.*screenshot|screenshot.*(of\s+)?(output|localhost|page|ui)/i.test(t)) return TASK_TYPE.VISION;
+    if (/implement|code|fix\s+(the\s+)?(bug|issue)|write\s+(the\s+)?(file|code)|refactor|add\s+(the\s+)?(feature|function)|edit\s+(the\s+)?file|create\s+(the\s+)?(file|module)|replace_in_file|write_file|apply_diff|run_lint|run_tests|debug|patch/i.test(t)) return TASK_TYPE.CODER;
+    return TASK_TYPE.GENERAL;
+}
+
+/** Score a model id/name against patterns (higher = better match). */
+function scoreModelForType(modelId, displayName, patterns) {
+    const s = `${(modelId || '')} ${(displayName || '')}`.toLowerCase();
+    for (let i = 0; i < patterns.length; i++) {
+        const p = patterns[i];
+        const re = p.includes('*') ? new RegExp(p.replace(/\*/g, '.*'), 'i') : null;
+        if (re && re.test(s)) return patterns.length - i;
+        if (!re && s.includes(p)) return patterns.length - i;
+    }
+    return 0;
+}
+
+/** Return true if model id/name matches coder patterns (avoid for vision tasks). */
+function isCoderModel(modelId, displayName) {
+    const s = `${(modelId || '')} ${(displayName || '')}`.toLowerCase();
+    return CODER_MODEL_PATTERNS.some((p) => {
+        const re = p.includes('*') ? new RegExp(p.replace(/\*/g, '.*'), 'i') : null;
+        return re ? re.test(s) : s.includes(p);
+    });
+}
+
+/**
+ * Pick the best available model for this task from the list (Ollama/LM Studio/etc.).
+ * For vision tasks: prefer vision-capable models (e.g. llava, glm4.7-flash); if none match, prefer any non-coder model over the session coder.
+ * preferredVisionModel (e.g. SWARM_VISION_MODEL) is used for vision tasks when the session model is a coder and no capable model was found in the list.
+ */
+function pickBestModelForTask(taskText, availableModels, defaultModel, preferredVisionModel) {
+    if (!Array.isArray(availableModels) || availableModels.length === 0) {
+        if (classifyTaskType(taskText) === TASK_TYPE.VISION && preferredVisionModel && isCoderModel(defaultModel, defaultModel)) return preferredVisionModel;
+        return defaultModel;
+    }
+    const type = classifyTaskType(taskText);
+    const patterns = type === TASK_TYPE.VISION ? VISION_MODEL_PATTERNS : type === TASK_TYPE.CODER ? CODER_MODEL_PATTERNS : null;
+    let best = null;
+    let bestScore = 0;
+    if (patterns) {
+        for (const m of availableModels) {
+            const id = m.id || m.displayName || '';
+            const displayName = m.displayName || m.id || '';
+            const score = scoreModelForType(id, displayName, patterns);
+            if (score > bestScore) {
+                bestScore = score;
+                best = id;
+            }
+        }
+    }
+    if (best) return best;
+    if (type === TASK_TYPE.VISION) {
+        const defaultIsCoder = isCoderModel(defaultModel, defaultModel);
+        if (defaultIsCoder) {
+            for (const m of availableModels) {
+                const id = m.id || m.displayName || '';
+                if (!id) continue;
+                if (!isCoderModel(id, m.displayName || id)) return id;
+            }
+            if (preferredVisionModel) return preferredVisionModel;
+        }
+    }
+    return defaultModel;
+}
+
+/** Normalize delegate tasks to [{ task, model? }]. Accepts string[] or { task, model? }[]. */
+function normalizeSwarmTasks(tasks) {
+    return tasks.map((t) => {
+        if (typeof t === 'string') return { task: t, model: null };
+        if (t && typeof t.task === 'string') return { task: t.task, model: t.model || null };
+        return { task: String(t), model: null };
+    });
+}
+
+/**
+ * Ordered list of model IDs to try for a task (goal: get task done irrespective of model).
+ * First is best match; rest are fallbacks so we can retry with another model on failure.
+ */
+function getModelsToTryForTask(taskText, availableModels, defaultModel, preferredVisionModel, explicitModel) {
+    if (explicitModel && typeof explicitModel === 'string') return [explicitModel];
+    const primary = pickBestModelForTask(taskText, availableModels, defaultModel, preferredVisionModel) || defaultModel;
+    const seen = new Set([primary]);
+    const out = [primary];
+    const add = (id) => { if (id && !seen.has(id)) { seen.add(id); out.push(id); } };
+    if (Array.isArray(availableModels) && availableModels.length > 0) {
+        for (const m of availableModels) {
+            const id = m.id || m.displayName || '';
+            if (id) add(id);
+        }
+    }
+    add(preferredVisionModel);
+    add(defaultModel);
+    return out;
+}
+
+/**
+ * Run delegated subtasks with a worker pool (max concurrency to avoid GPU bottleneck).
+ * Each worker tries the best model first; on non-fatal failure, retries with the next model so the task gets done irrespective of which model is used.
+ */
+async function runSwarmWorkers(tasks, state, parentSend, messages, resolvedModel, maxWorkers) {
+    const normalized = normalizeSwarmTasks(tasks);
+    const defaultModel = state.model || resolvedModel;
+    const preferredVision = SWARM_VISION_MODEL || null;
+    let availableModels = [];
+    try {
+        availableModels = await listModels();
+    } catch (e) {
+        console.warn('[Agent] Swarm listModels failed, using default model for all workers:', e.message);
+    }
+    const results = [];
+    const baseId = state.sessionId + '_swarm_';
+    for (let i = 0; i < normalized.length; i += maxWorkers) {
+        const chunk = normalized.slice(i, i + maxWorkers);
+        const chunkPromises = chunk.map(async (item, j) => {
+            const workerId = baseId + (i + j);
+            const taskText = item.task;
+            const modelsToTry = getModelsToTryForTask(taskText, availableModels, defaultModel, preferredVision, item.model);
+            let finalContent = '';
+            const workerSend = (obj) => {
+                if (obj && obj.type === 'final' && obj.content != null) finalContent = String(obj.content);
+            };
+            let lastError = null;
+            for (const workerModel of modelsToTry) {
+                try {
+                    await runAgent({
+                        sessionId: workerId,
+                        message: taskText,
+                        model: workerModel,
+                        agentPlus: true,
+                        workspaceRoot: state.workspaceRoot,
+                        send: workerSend,
+                        maxSteps: 15
+                    });
+                    activeAgents.delete(workerId);
+                    return finalContent || '(no output)';
+                } catch (err) {
+                    activeAgents.delete(workerId);
+                    const msg = err && (err.message || String(err));
+                    const fatal = /memory|heap|ENOMEM|out of memory|ECONNRESET|socket hang up|abort/i.test(msg);
+                    if (fatal) throw err;
+                    lastError = msg;
+                }
+            }
+            return lastError != null ? `Worker error: ${lastError}` : '(no output)';
+        });
+        const chunkResults = await Promise.all(chunkPromises);
+        results.push(...chunkResults);
+    }
+    const allErrors = results.every((r) => typeof r === 'string' && r.startsWith('Worker error:'));
+    if (results.length > 0 && allErrors) {
+        throw new Error(results[0] || 'Swarm workers failed (e.g. memory or hardware).');
+    }
+    const combined = results.map((r, idx) => `[Subtask ${idx + 1}]\n${r}`).join('\n\n');
+    messages.push({ role: 'tool', content: JSON.stringify({ type: 'observation', content: `Swarm results:\n\n${combined}` }) });
+    parentSend({ type: 'observation', content: { swarm: true, results: results.length, summary: combined.slice(0, 500) + (combined.length > 500 ? '...' : '') } });
 }
 
 /**
@@ -742,15 +970,18 @@ async function executeToolAction(parsed, state, send, messages) {
         // In Agent+ mode, apply directly
         if (!state.agentPlus) {
             if (parsed.tool === 'apply_diff' && parsed.args?.filePath && parsed.args?.diff) {
-                const dr = { type: 'diff_request', filePath: parsed.args.filePath, diff: parsed.args.diff };
+                const root = state.workspaceRoot || process.cwd();
+                const filePath = resolvePathInWorkspace(root, parsed.args.filePath);
+                const relPath = path.relative(root, filePath).replace(/\\/g, '/');
+                const dr = { type: 'diff_request', filePath: relPath, diff: parsed.args.diff };
                 send({ ...dr, sessionId: state.sessionId });
                 state.pendingDiff = dr;
                 return 'stop';
             }
             if (parsed.tool === 'write_file' && parsed.args?.path != null && parsed.args?.content != null) {
                 const root = state.workspaceRoot || process.cwd();
-                const filePath = String(parsed.args.path);
-                const abs = path.resolve(root, filePath);
+                const abs = resolvePathInWorkspace(root, parsed.args.path);
+                const filePath = path.relative(root, abs).replace(/\\/g, '/');
                 const before = fs.existsSync(abs) ? fs.readFileSync(abs, 'utf8') : '';
                 const after = String(parsed.args.content);
                 const patch = createTwoFilesPatch(filePath, filePath, before, after, '', '', { context: 3 });
@@ -761,8 +992,8 @@ async function executeToolAction(parsed, state, send, messages) {
             }
             if (parsed.tool === 'replace_in_file' && parsed.args?.path != null) {
                 const root = state.workspaceRoot || process.cwd();
-                const filePath = String(parsed.args.path);
-                const abs = path.resolve(root, filePath);
+                const abs = resolvePathInWorkspace(root, parsed.args.path);
+                const filePath = path.relative(root, abs).replace(/\\/g, '/');
                 const before = fs.existsSync(abs) ? fs.readFileSync(abs, 'utf8') : '';
                 const search = String(parsed.args.search ?? '');
                 const replace = String(parsed.args.replace ?? '');
@@ -792,6 +1023,17 @@ async function executeToolAction(parsed, state, send, messages) {
 
     messages.push({ role: 'tool', content: JSON.stringify(truncatedResult) });
     send({ type: 'observation', content: result });
+
+    // Tell the client to open the file in the editor when the agent creates/edits it (e.g. write_file)
+    const fileMutationOk = result && typeof result === 'object' && result.ok === true && !result.error;
+    if (fileMutationOk && (parsed.tool === 'write_file' || parsed.tool === 'replace_in_file') && parsed.args?.path) {
+        try {
+            const root = state.workspaceRoot || process.cwd();
+            const absPath = resolvePathInWorkspace(root, parsed.args.path);
+            const relPath = path.relative(root, absPath).replace(/\\/g, '/');
+            send({ type: 'open_file', path: relPath });
+        } catch (_) { /* ignore */ }
+    }
 
     // Persist after each tool step
     try { saveConversation(state.sessionId || 'default', messages, { model: state.model }); } catch { }

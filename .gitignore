@@ -48,6 +48,7 @@ cli/
 
 # Optional: exclude internal docs (uncomment if you don't want these in the repo)
 .vscodeignore
+.cursor/
 Extension_fixes_summary.md
 FIX_COMPLETION_REPORT.md
 OPEN_SOURCE_GUIDE.md

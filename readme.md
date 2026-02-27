@@ -46,7 +46,8 @@ Use **IsoCode** when you want a local-first agent (plan → edit → approve) in
 
 | Area | Details |
 |------|---------|
-| **Modes** | Chat (streaming), Agent (diff approval), Agent+ (autonomous) |
+| **Modes** | Chat (streaming), Agent (diff approval), Agent+ (autonomous, optional swarm delegation) |
+| **Commands** | Explain Selection (command palette), slash commands: /new, /compact, /sessions, /help |
 | **Tools** | `read_file`, `write_file`, `replace_in_file`, `apply_diff`, `codebase_search`, `search_files`, `list_files`, `glob_files`, `run_shell`, `run_lint`, `run_tests`, `git_status` / `git_diff` / `git_commit` / `git_log` / `git_branch`, `memory_read` / `memory_write`, browser (screenshot, click, type, extract), MCP tools |
 | **Context** | Add files to context, @-mention, auto-gather from codebase; project rules from `.isocode/rules.md`, `AGENTS.md`, `.cursorrules` |
 | **Stack** | Node.js server (Express) + VS Code extension (TypeScript); supports Ollama, LM Studio, OpenAI-compatible APIs |
@@ -110,7 +111,8 @@ Project-specific instructions: add `.isocode/rules.md` in your workspace. Option
 
 ```
 IsoCode/
-├── assets/              # Screenshot & demo video 
+├── assets/              # Screenshot & demo video
+├── docs/                # Documentation (docs/index.html)
 ├── server/              # Agent server (Node)
 │   ├── index.js         # HTTP + SSE
 │   ├── agent.js         # ReAct loop
@@ -132,6 +134,7 @@ IsoCode/
 
 ## Docs
 
+- **[Documentation](docs/index.html)** — Full docs (modes, tools, configuration, security)
 - [Contributing](CONTRIBUTING.md)
 - [Publishing (GitHub, VS Code Marketplace)](https://marketplace.visualstudio.com/items?itemName=isocode.isocode-local)
 
