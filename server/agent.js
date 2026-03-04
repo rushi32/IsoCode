@@ -8,7 +8,7 @@ const activeAgents = new Map();
 
 const { callLLM, listModels } = require('./llm');
 const { runTool, TOOL_DEFINITIONS } = require('./tools');
-const { MAX_HISTORY_MESSAGES, CONTEXT_WINDOW_SIZE, LLM_PROVIDER, SWARM_MAX_WORKERS, SWARM_VISION_MODEL } = require('./config.js');
+const { MAX_HISTORY_MESSAGES, CONTEXT_WINDOW_SIZE, LLM_PROVIDER, SWARM_MAX_WORKERS, SWARM_VISION_MODEL, MAX_AGENT_RESPONSE_TOKENS } = require('./config.js');
 const { trimForContextWindow, truncateToolResult, shouldAutoCompact, compactConversation, estimateMessagesTokens, saveSessionSummary, buildMemoryContext } = require('./context-manager.js');
 const { saveConversation, getProjectContextSummary, discoverProjectType } = require('./store.js');
 const { getIndex, buildProjectMap, gatherAutoContext } = require('./codebase.js');
@@ -26,6 +26,16 @@ function resolvePathInWorkspace(workspaceRoot, filePath) {
         throw new Error(`Security: path outside workspace denied for: ${filePath}`);
     }
     return resolved;
+}
+
+/** Heuristic: treat as complex/long task so we use full context and higher max_tokens (no speed shortcuts). */
+function isComplexQuery(message, existingMessageCount) {
+    if (!message || typeof message !== 'string') return existingMessageCount > 1;
+    const t = message.toLowerCase().trim();
+    const longMessage = t.length > 220;
+    const complexKeywords = /\b(refactor|review|implement|migrate|rewrite|document|test suite|all files|entire|whole project|across the|multiple files|every file|full codebase|comprehensive|detailed)\b/.test(t);
+    const multiStep = /\b(and then|after that|first|second|step \d|1\.|2\.|3\.)\b/.test(t);
+    return longMessage || complexKeywords || multiStep || existingMessageCount > 1;
 }
 
 const CONTEXT_BUDGET = typeof CONTEXT_WINDOW_SIZE === 'number' && CONTEXT_WINDOW_SIZE > 0
@@ -418,6 +428,7 @@ async function runAgent({
     // Initialize session
     if (!state) {
         const SYSTEM_PROMPT = buildSystemPrompt(agentPlus);
+        const useFullLimits = isComplexQuery(message, 1);
 
         const wsRoot = workspaceRoot || process.cwd();
         let projectCtx = '';
@@ -427,16 +438,22 @@ async function runAgent({
         try { discoverProjectType(wsRoot); } catch { }
         try { projectCtx = getProjectContextSummary(); } catch { }
         try {
-            const index = await getIndex(wsRoot);
-            projectMap = '\n\nPROJECT MAP:\n' + buildProjectMap(index);
-        } catch { }
-        try { projectRules = await loadProjectRules(wsRoot); } catch { }
+            const [index, rules] = await Promise.all([getIndex(wsRoot), loadProjectRules(wsRoot)]);
+            const rawMap = buildProjectMap(index);
+            const mapCap = useFullLimits ? 0 : 2000;
+            projectMap = '\n\nPROJECT MAP:\n' + (mapCap > 0 && rawMap.length > mapCap ? rawMap.slice(0, mapCap) + '\n...[truncated]' : rawMap);
+            projectRules = rules || '';
+        } catch (_) {
+            try { const index = await getIndex(wsRoot); const raw = buildProjectMap(index); projectMap = '\n\nPROJECT MAP:\n' + raw; } catch { }
+            try { if (!projectRules) projectRules = await loadProjectRules(wsRoot); } catch { }
+        }
 
         const hasExplicitContext = message && (message.includes('File:') || message.includes('```'));
+        const autoCtxMax = useFullLimits ? 3000 : 2500;
         let autoCtx = '';
         if (!hasExplicitContext) {
             try {
-                autoCtx = await gatherAutoContext(message || '', wsRoot, 3000);
+                autoCtx = await gatherAutoContext(message || '', wsRoot, autoCtxMax);
             } catch { }
         }
 
@@ -451,14 +468,14 @@ async function runAgent({
         let memoryCtx = '';
         try { memoryCtx = buildMemoryContext(wsRoot); } catch { }
 
-        // Load previous checkpoint if exists
+        const checkpointCap = useFullLimits ? 1500 : 1000;
         let checkpointCtx = '';
         try {
             const cpDir = path.join(wsRoot, '.isocode', 'checkpoints');
             const cpFile = path.join(cpDir, `${sessionId.replace(/[^a-zA-Z0-9_-]/g, '_')}.md`);
             if (fs.existsSync(cpFile)) {
                 const cpContent = fs.readFileSync(cpFile, 'utf8');
-                checkpointCtx = '\n\nPREVIOUS SESSION CONTEXT:\n' + cpContent.slice(0, 1500);
+                checkpointCtx = '\n\nPREVIOUS SESSION CONTEXT:\n' + cpContent.slice(0, checkpointCap);
             }
         } catch { }
 
@@ -484,11 +501,13 @@ async function runAgent({
             compactCount: 0,
             consecutiveStepsWithoutAction: 0,
             stopRequested: false,
-            swarmDisabled: false
+            swarmDisabled: false,
+            useFullLimits
         };
         activeAgents.set(sessionId, state);
-        console.log(`[Agent] Session ${sessionId} initialized (${agentPlus ? 'Agent+' : 'Agent'}): projectMap=${projectMap.length}c, rules=${projectRules.length}c, autoCtx=${autoCtx.length}c`);
+        console.log(`[Agent] Session ${sessionId} initialized (${agentPlus ? 'Agent+' : 'Agent'}, ${useFullLimits ? 'full' : 'fast'}): projectMap=${projectMap.length}c, rules=${projectRules.length}c, autoCtx=${autoCtx.length}c`);
     } else {
+        state.useFullLimits = true;
         if (model) state.model = model;
         if (message) {
             state.messages.push({ role: 'user', content: message });
@@ -549,13 +568,14 @@ async function runAgent({
 
         let raw;
         try {
+            const useFull = state.useFullLimits === true;
             raw = await callLLM({
                 model: resolvedModel,
                 messages: trimmedMessages,
                 options: {
                     expect_json: true,
-                    temperature: state.agentPlus ? 0.5 : 0.2,
-                    max_tokens: 4096,
+                    temperature: useFull ? (state.agentPlus ? 0.5 : 0.2) : (state.agentPlus ? 0.4 : 0.15),
+                    max_tokens: useFull ? 4096 : MAX_AGENT_RESPONSE_TOKENS,
                     timeout: state.agentPlus ? 300000 : 180000
                 }
             });

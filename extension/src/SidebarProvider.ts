@@ -131,14 +131,16 @@ export class SidebarProvider implements vscode.WebviewViewProvider, vscode.Dispo
         };
 
         const maxContextChars = 12000;
+        /** Only the active editor's file (at most one). Avoids adding every open tab as context when sidebar first opens. */
         const getOpenEditorFiles = (): { path: string; name: string; content: string }[] => {
             const files: { path: string; name: string; content: string }[] = [];
-            for (const doc of vscode.workspace.textDocuments) {
-                if (doc.isUntitled || doc.uri.scheme !== 'file') continue;
-                const text = doc.getText();
-                const content = text.length > maxContextChars ? text.slice(0, maxContextChars) + '\n...[truncated]' : text;
-                files.push({ path: doc.fileName, name: path.basename(doc.fileName), content });
-            }
+            const editor = vscode.window.activeTextEditor;
+            if (!editor) return files;
+            const doc = editor.document;
+            if (doc.isUntitled || doc.uri.scheme !== 'file') return files;
+            const text = doc.getText();
+            const content = text.length > maxContextChars ? text.slice(0, maxContextChars) + '\n...[truncated]' : text;
+            files.push({ path: doc.fileName, name: path.basename(doc.fileName), content });
             return files;
         };
 

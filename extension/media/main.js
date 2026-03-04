@@ -1,4 +1,4 @@
-// Main webview script for IsoCode sidebar
+// IsoCode main webview script
 // Provides an IsoCode-style agent pane with:
 // - Agent mode toggle (Chat / Agent / Agent+)
 // - Dynamic model list from Ollama, LM Studio, or OpenAI
