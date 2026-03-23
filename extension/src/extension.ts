@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { SidebarProvider } from './SidebarProvider';
+import { registerApplyDiffCommand } from './commands/applyDiff';
 
 export function activate(context: vscode.ExtensionContext) {
     console.log('IsoCode Local is now active!');
@@ -31,6 +32,8 @@ export function activate(context: vscode.ExtensionContext) {
             await vscode.commands.executeCommand('workbench.view.extension.isocode-sidebar-view');
         })
     );
+
+    registerApplyDiffCommand(context);
 }
 
 export function deactivate() {}

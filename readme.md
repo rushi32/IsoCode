@@ -1,8 +1,31 @@
-# IsoCode
+<p align="center">
+  <img src="extension/media/icon.svg" alt="IsoCode logo" width="96" />
+</p>
 
-**Local agentic AI coding assistant for VS Code.** ReAct-style agent that reads, edits, and runs tools in your workspace—runs on Ollama, LM Studio, or any OpenAI-compatible API. No cloud required.
+<h1 align="center">IsoCode</h1>
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![VS Code](https://img.shields.io/badge/VS%20Code-1.85%2B-blue)](https://code.visualstudio.com/) [![Node](https://img.shields.io/badge/Node-18%2B-green)](https://nodejs.org/)
+<p align="center">
+  Local-first, agentic coding assistant for IDEs.<br/>
+  ReAct-style planning + tool execution on your own infrastructure.
+</p>
+
+<p align="center">
+  <a href="https://code.visualstudio.com/"><img src="https://img.shields.io/badge/VS%20Code-1.85%2B-blue" alt="VS Code"/></a>
+  <img src="https://img.shields.io/badge/ACP-ready-7A42F4" alt="ACP ready"/>
+  <img src="https://img.shields.io/badge/OpenAPI-3.0.3-85EA2D" alt="OpenAPI 3.0.3"/>
+  <a href="https://nodejs.org/"><img src="https://img.shields.io/badge/Node-18%2B-green" alt="Node 18+"/></a>
+  <img src="https://img.shields.io/badge/Local%20LLMs-Ollama%20%7C%20LM%20Studio-black" alt="Local LLMs"/>
+</p>
+
+<p align="center">
+  <a href="#install">Install</a> •
+  <a href="#usage">Usage</a> •
+  <a href="#features">Features</a> •
+  <a href="docs/index.html">Docs</a> •
+  <a href="docs/api-spec.yaml">OpenAPI Spec</a>
+</p>
+
+![IsoCode banner](assets/isocode-ui.png)
 
 ---
 
@@ -116,6 +139,7 @@ IsoCode/
 ├── server/              # Agent server (Node)
 │   ├── index.js         # HTTP + SSE
 │   ├── agent.js         # ReAct loop
+│   ├── acp-adapter.js   # ACP stdio adapter (for Zed, JetBrains ACP, etc.)
 │   ├── tools.js         # Tool implementations
 │   ├── llm.js           # Ollama / LM Studio / OpenAI
 │   ├── config.js        # Env + user-config
@@ -135,6 +159,8 @@ IsoCode/
 ## Docs
 
 - **[Documentation](docs/index.html)** — Full docs (modes, tools, configuration, security)
+- **[API spec](docs/api-spec.yaml)** — OpenAPI 3 spec for building other IDE clients
+- **ACP adapter** — Use IsoCode in any [ACP](https://agentclientprotocol.com/)-compatible IDE (Zed, JetBrains, Neovim, Emacs): run `npm run acp-adapter` with the server URL in `ISOCODE_SERVER_URL`; see [Integrating other IDEs](docs/index.html#integrating-other-ides)
 - [Contributing](CONTRIBUTING.md)
 - [Publishing (GitHub, VS Code Marketplace)](https://marketplace.visualstudio.com/items?itemName=isocode.isocode-local)
 

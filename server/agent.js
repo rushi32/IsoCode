@@ -519,6 +519,12 @@ async function runAgent({
     state.consecutiveFinals = 0;
     state.consecutiveStepsWithoutAction = 0;
     state._compactedThisRun = false;
+    // Allows /stop-agent to immediately abort an in-flight LLM HTTP request.
+    state.llmAbortController = new AbortController();
+
+    // Even if the server passes a high maxSteps, we cap it for fast/non-complex runs.
+    // This prevents long tool/open_file loops from delaying the first `final` on simple prompts.
+    const effectiveMaxSteps = state.useFullLimits ? maxSteps : Math.min(maxSteps, 25);
 
     const NO_PROGRESS_LIMIT = 10;  // stop if this many steps in a row with no tool/diff action
 
@@ -527,7 +533,7 @@ async function runAgent({
 
     // --- ReAct Loop ---
     // No fixed step limit for local use; stop on: final, diff_request (Agent), no-progress, or safety cap
-    for (; state.step < maxSteps; state.step++) {
+    for (; state.step < effectiveMaxSteps; state.step++) {
         if (state.stopRequested) {
             saveContextCheckpoint(state, resolvedModel);
             send({ type: 'final', content: 'Agent stopped by user.' });
@@ -574,6 +580,7 @@ async function runAgent({
                 messages: trimmedMessages,
                 options: {
                     expect_json: true,
+                    signal: state.llmAbortController?.signal,
                     temperature: useFull ? (state.agentPlus ? 0.5 : 0.2) : (state.agentPlus ? 0.4 : 0.15),
                     max_tokens: useFull ? 4096 : MAX_AGENT_RESPONSE_TOKENS,
                     timeout: state.agentPlus ? 300000 : 180000
@@ -581,6 +588,15 @@ async function runAgent({
             });
             state.retryCount = 0;
         } catch (err) {
+            const aborted = state.stopRequested
+                || err?.name === 'AbortError'
+                || err?.code === 'ERR_CANCELED';
+            if (aborted) {
+                saveContextCheckpoint(state, resolvedModel);
+                send({ type: 'final', content: 'Agent stopped by user.' });
+                state.stopRequested = false;
+                return;
+            }
             const errData = err?.response?.data;
             const details = errData ? (typeof errData === 'string' ? errData : JSON.stringify(errData)) : (err?.message || String(err));
 

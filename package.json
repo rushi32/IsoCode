@@ -5,6 +5,7 @@
   "main": "server/index.js",
   "scripts": {
     "start": "node server/index.js",
+    "acp-adapter": "node server/acp-adapter.js",
     "test": "node cli/run-suite.js"
   },
   "keywords": [

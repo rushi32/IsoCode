@@ -273,6 +273,12 @@ app.post('/stop-agent', (req, res) => {
     const state = activeAgents.get(sessionId);
     if (state) {
         state.stopRequested = true;
+        // Abort any in-flight LLM HTTP request for this session so other sessions can continue.
+        try {
+            if (state.llmAbortController?.signal && !state.llmAbortController.signal.aborted) {
+                state.llmAbortController.abort();
+            }
+        } catch { }
         console.log(`[Server] Stop requested for session: ${sessionId}`);
         res.json({ ok: true });
     } else {

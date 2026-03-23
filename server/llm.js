@@ -5,6 +5,11 @@
 const axios = require('axios');
 const config = require('./config.js');
 
+// Ollama concurrency guard.
+// In practice, Ollama deployments often behave poorly with multiple simultaneous requests
+// (requests can queue indefinitely). We serialize Ollama calls to avoid deadlocks/stalls.
+let ollamaCallLock = Promise.resolve();
+
 /**
  * Call a chat-completions endpoint.
  * Automatically routes to the correct provider API.
@@ -42,54 +47,62 @@ async function callLLM({ model, messages, options = {} }) {
  * Falls back to native /api/chat if the compat endpoint fails.
  */
 async function callOllama({ model, messages, options, timeoutMs }) {
-    const base = (config.LLM_API_BASE || '').replace(/\/$/, '');
-    const nativeBase = config.LLM_NATIVE_BASE || base.replace(/\/v1$/, '');
+    const run = async () => {
+        const base = (config.LLM_API_BASE || '').replace(/\/$/, '');
+        const nativeBase = config.LLM_NATIVE_BASE || base.replace(/\/v1$/, '');
 
-    // Try OpenAI-compatible first (preferred - better tool calling support)
-    try {
-        const result = await callOpenAICompat({ model, messages, options, timeoutMs });
-        if (result && String(result).trim()) return result;
-    } catch (compatErr) {
-        console.log('[LLM] OpenAI-compat endpoint failed, trying Ollama native:', compatErr.message);
-    }
-
-    // Fallback: Ollama native /api/chat
-    const endpoint = `${nativeBase}/api/chat`;
-    console.log('[LLM] Ollama native POST', endpoint);
-
-    const payload = {
-        model,
-        messages: messages.map(m => ({
-            role: m.role === 'tool' ? 'assistant' : m.role,
-            content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content)
-        })),
-        stream: false,
-        options: {
-            temperature: options.temperature ?? 0.7,
-            num_predict: options.max_tokens ?? 4096
+        // Try OpenAI-compatible first (preferred - better tool calling support)
+        try {
+            const result = await callOpenAICompat({ model, messages, options, timeoutMs });
+            if (result && String(result).trim()) return result;
+        } catch (compatErr) {
+            console.log('[LLM] OpenAI-compat endpoint failed, trying Ollama native:', compatErr.message);
         }
+
+        // Fallback: Ollama native /api/chat
+        const endpoint = `${nativeBase}/api/chat`;
+        console.log('[LLM] Ollama native POST', endpoint);
+
+        const payload = {
+            model,
+            messages: messages.map(m => ({
+                role: m.role === 'tool' ? 'assistant' : m.role,
+                content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content)
+            })),
+            stream: false,
+            options: {
+                temperature: options.temperature ?? 0.7,
+                num_predict: options.max_tokens ?? 4096
+            }
+        };
+
+        if (options.expect_json) {
+            payload.format = 'json';
+        }
+
+        const res = await axios.post(endpoint, payload, {
+            headers: { 'Content-Type': 'application/json' },
+            timeout: timeoutMs,
+            signal: options?.signal
+        });
+
+        const data = res.data || {};
+        const content = data.message?.content || data.response || '';
+
+        if (content && String(content).trim()) {
+            console.log('[LLM] Ollama native response OK, length:', String(content).length);
+            return String(content).trim();
+        }
+
+        return options.expect_json
+            ? JSON.stringify({ type: 'final', content: 'Model returned empty content. Try another model or retry.' })
+            : 'Model returned empty content. Try another model or retry.';
     };
 
-    if (options.expect_json) {
-        payload.format = 'json';
-    }
-
-    const res = await axios.post(endpoint, payload, {
-        headers: { 'Content-Type': 'application/json' },
-        timeout: timeoutMs
-    });
-
-    const data = res.data || {};
-    const content = data.message?.content || data.response || '';
-
-    if (content && String(content).trim()) {
-        console.log('[LLM] Ollama native response OK, length:', String(content).length);
-        return String(content).trim();
-    }
-
-    return options.expect_json
-        ? JSON.stringify({ type: 'final', content: 'Model returned empty content. Try another model or retry.' })
-        : 'Model returned empty content. Try another model or retry.';
+    const next = ollamaCallLock.then(run, run);
+    // Keep the chain alive even if run throws.
+    ollamaCallLock = next.catch(() => { });
+    return next;
 }
 
 /**
@@ -149,7 +162,8 @@ async function callOpenAICompat({ model, messages, options, timeoutMs }) {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${config.LLM_API_KEY}`
                 },
-                timeout: timeoutMs
+                timeout: timeoutMs,
+                signal: options?.signal
             });
         } catch (err) {
             const errData = err.response?.data;

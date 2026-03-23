@@ -87,6 +87,7 @@
             <a href="#tools">Tools</a>
             <a href="#configuration">Configuration</a>
             <a href="#project-rules">Project rules</a>
+            <a href="#integrating-other-ides">Integrating other IDEs</a>
             <a href="#security">Security</a>
             <div class="nav-section">Links</div>
             <a href="../README.md">README</a>
@@ -193,6 +194,26 @@ npm run compile</code></pre>
 
             <h2 id="project-rules">Project rules</h2>
             <p>Put project-specific instructions in <code>.isocode/rules.md</code> in your workspace. The agent receives these rules in its system context and should follow them. You can also use <code>AGENTS.md</code> or <code>.cursorrules</code>; they are loaded as project rules.</p>
+
+            <h2 id="integrating-other-ides">Integrating other IDEs</h2>
+            <p>IsoCode’s server is <strong>IDE-agnostic</strong>. You can use it from any editor by talking to its HTTP API or via the <strong>Agent Client Protocol (ACP)</strong>.</p>
+            <h3>API spec</h3>
+            <p>The server API is documented in OpenAPI 3 format: <a href="api-spec.yaml"><code>docs/api-spec.yaml</code></a>. Use it to build a thin client for IntelliJ, Sublime, Neovim, or any other IDE:</p>
+            <ul>
+                <li><strong>Endpoints:</strong> <code>GET /health</code>, <code>GET /models</code>, <code>POST /chat</code> (streaming SSE), <code>POST /stop-agent</code>, <code>GET/POST /sessions</code>, <code>GET /codebase</code>, etc.</li>
+                <li><strong>Streaming:</strong> Send <code>Accept: text/event-stream</code> on <code>POST /chat</code> for agent mode; events are JSON objects with <code>type</code> (<code>thought</code>, <code>action</code>, <code>observation</code>, <code>final</code>, <code>diff_request</code>, <code>open_file</code>).</li>
+            </ul>
+            <h3>ACP adapter (use IsoCode in any ACP-compatible IDE)</h3>
+            <p>IsoCode includes an <strong>ACP adapter</strong> so editors that support the <a href="https://agentclientprotocol.com/">Agent Client Protocol</a> (Zed, JetBrains with ACP, Neovim, Emacs, etc.) can use IsoCode without a custom plugin.</p>
+            <ol>
+                <li>Start the IsoCode server: <code>npm start</code> (or your usual server URL).</li>
+                <li>Run the adapter as the “agent” process your IDE launches. The adapter reads JSON-RPC from stdin and writes JSON-RPC to stdout (stdio transport).</li>
+            </ol>
+            <pre><code># Optional: set server URL (default http://localhost:3000)
+export ISOCODE_SERVER_URL=http://localhost:3000
+node server/acp-adapter.js</code></pre>
+            <p>Or from your ACP client config: <code>command = "node"</code>, <code>args = ["/path/to/IsoCode/server/acp-adapter.js"]</code>. Ensure the IsoCode server is running; the adapter proxies <code>initialize</code>, <code>session/new</code>, <code>session/prompt</code>, and <code>session/cancel</code> to the server.</p>
+            <p>See <a href="multi-ide-support-plan.md">Multi-IDE support plan</a> for a full roadmap (JetBrains plugin, Theia, etc.).</p>
 
             <h2 id="security">Security</h2>
             <ul>

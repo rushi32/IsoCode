@@ -1,0 +1,384 @@
+# IsoCode Agent Server — API Specification
+# Use this spec to build any IDE client (VS Code, IntelliJ, Zed, Neovim, etc.)
+# or to integrate with the ACP adapter for ACP-compatible editors.
+
+openapi: 3.0.3
+info:
+  title: IsoCode Agent Server API
+  description: |
+    HTTP API for the IsoCode local AI coding agent. All endpoints are IDE-agnostic.
+    Use with Accept: text/event-stream for streaming responses where noted.
+  version: 0.0.9
+  contact:
+    name: IsoCode
+    url: https://github.com/rushi32/IsoCode
+
+servers:
+  - url: http://localhost:3000
+    description: Default local server
+
+tags:
+  - name: Health
+  - name: Config
+  - name: Chat
+  - name: Agent
+  - name: Sessions
+  - name: Codebase
+  - name: Models
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check
+      description: Verifies server and LLM connectivity.
+      responses:
+        '200':
+          description: Health status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  error: { type: string, description: 'Present if ok is false' }
+                  provider: { type: string }
+
+  /models:
+    get:
+      tags: [Models]
+      summary: List available models
+      description: Returns models from the configured provider (Ollama, LM Studio, etc.).
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  models: { type: array, items: { type: string } }
+                  provider: { type: string }
+                  error: { type: string }
+
+  /config:
+    post:
+      tags: [Config]
+      summary: Update runtime config
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                PERMISSIONS: { $ref: '#/components/schemas/Permissions' }
+                MCP_SERVERS: { type: array, items: { $ref: '#/components/schemas/McpServer' } }
+                MAX_HISTORY_MESSAGES: { type: integer }
+                CONTEXT_WINDOW_SIZE: { type: integer }
+                LLM_API_BASE: { type: string }
+                LLM_MODEL_ID: { type: string }
+                LLM_PROVIDER: { type: string }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  mcpServers: { type: integer }
+
+  /mcp-status:
+    get:
+      tags: [Config]
+      summary: MCP servers status
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  configured: { type: integer }
+                  servers: { type: array, items: { type: object, properties: { name: {}, command: {}, args: {} } } }
+
+  /chat:
+    post:
+      tags: [Chat, Agent]
+      summary: Chat or run agent (streaming)
+      description: |
+        - If Accept includes text/event-stream and autoMode is false: streaming chat (SSE chunks).
+        - If autoMode is true or agentPlus is true: agent mode (SSE with thought/action/observation/final events).
+        Send Accept: text/event-stream for streaming.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: []
+              properties:
+                message: { type: string, description: 'User message (required unless decision is set)' }
+                autoMode: { type: boolean, default: false, description: 'If true, use agent loop' }
+                agentPlus: { type: boolean, default: false, description: 'Agent+ mode (auto-apply edits)' }
+                model: { type: string, description: 'Model ID; omit for default' }
+                sessionId: { type: string, default: 'default' }
+                decision: { type: string, enum: ['approve', 'reject'], description: 'For diff approval when resuming' }
+                context: { type: array, items: { $ref: '#/components/schemas/ContextFile' } }
+                workspaceRoot: { type: string, description: 'Workspace path for file operations' }
+      responses:
+        '200':
+          description: SSE stream or JSON (non-streaming chat only)
+          headers:
+            Content-Type:
+              schema: { type: string, enum: ['text/event-stream; charset=utf-8', 'application/json'] }
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                description: |
+                  SSE events; each data line is JSON.
+                  Chat stream: { "type": "chunk", "content": "..." } then { "type": "done" } or { "type": "error", "content": "..." }.
+                  Agent stream: { "type": "thought", "content": "..." } | { "type": "action", "tool": "...", "args": {} } | { "type": "observation", "content": ... } | { "type": "diff_request", "filePath": "...", "diff": "..." } | { "type": "final", "content": "..." } | { "type": "open_file", "path": "..." }.
+            application/json:
+              schema:
+                type: object
+                properties:
+                  response: { type: string }
+        '400':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '500':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /stop-agent:
+    post:
+      tags: [Agent]
+      summary: Stop running agent
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                sessionId: { type: string, default: 'default' }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  error: { type: string }
+
+  /clear-session:
+    post:
+      tags: [Sessions]
+      summary: Clear in-memory agent session
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                sessionId: { type: string }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+
+  /compact:
+    post:
+      tags: [Agent]
+      summary: Compact conversation context
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                sessionId: { type: string, default: 'default' }
+                model: { type: string }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  compacted: { type: boolean }
+                  removedCount: { type: integer }
+        '500':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /sessions:
+    get:
+      tags: [Sessions]
+      summary: List active and saved sessions
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  active: { type: array, items: { $ref: '#/components/schemas/SessionSummary' } }
+                  saved: { type: array, items: { type: object } }
+
+  /sessions/{id}:
+    get:
+      tags: [Sessions]
+      summary: Load conversation by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { type: object }
+        '404':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+    delete:
+      tags: [Sessions]
+      summary: Delete conversation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+
+  /switch-model:
+    post:
+      tags: [Agent]
+      summary: Switch model for a session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [model]
+              properties:
+                sessionId: { type: string, default: 'default' }
+                model: { type: string }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema: { type: object }
+        '400':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '500':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /codebase:
+    get:
+      tags: [Codebase]
+      summary: Get project index / map
+      parameters:
+        - name: root
+          in: query
+          schema: { type: string }
+          description: Workspace root path (default process.cwd())
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  fileCount: { type: integer }
+                  dirs: { type: integer }
+                  keyFiles: { type: array, items: { type: string } }
+                  map: { type: string }
+                  timestamp: { type: integer }
+        '500':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /codebase/reindex:
+    post:
+      tags: [Codebase]
+      summary: Invalidate cache and reindex
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                root: { type: string }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  fileCount: { type: integer }
+        '500':
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+components:
+  schemas:
+    Error:
+      type: object
+      properties:
+        error: { type: string }
+        details: { type: string }
+        hint: { type: string }
+    ContextFile:
+      type: object
+      properties:
+        path: { type: string }
+        content: { type: string }
+    Permissions:
+      type: object
+      properties:
+        run_shell: { type: string, enum: ['ask', 'always', 'never'] }
+        write_file: { type: string, enum: ['ask', 'always', 'never'] }
+        replace_in_file: { type: string, enum: ['ask', 'always', 'never'] }
+    McpServer:
+      type: object
+      required: [name, command]
+      properties:
+        name: { type: string }
+        command: { type: string }
+        args: { type: array, items: { type: string } }
+    SessionSummary:
+      type: object
+      properties:
+        sessionId: { type: string }
+        active: { type: boolean }
+        messageCount: { type: integer }
+        estimatedTokens: { type: integer }
+        model: { type: string }
