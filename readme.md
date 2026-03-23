@@ -1,13 +1,4 @@
-<p align="center">
-  <img src="extension/media/icon.svg" alt="IsoCode logo" width="96" />
-</p>
-
-<h1 align="center">IsoCode</h1>
-
-<p align="center">
-  Local-first, agentic coding assistant for IDEs.<br/>
-  ReAct-style planning + tool execution on your own infrastructure.
-</p>
+![IsoCode banner](assets/isocode-banner-light.svg)
 
 <p align="center">
   <a href="https://code.visualstudio.com/"><img src="https://img.shields.io/badge/VS%20Code-1.85%2B-blue" alt="VS Code"/></a>
@@ -24,8 +15,6 @@
   <a href="docs/index.html">Docs</a> •
   <a href="docs/api-spec.yaml">OpenAPI Spec</a>
 </p>
-
-![IsoCode banner](assets/isocode-banner-light.svg)
 
 ---
 
