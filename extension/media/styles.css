@@ -9,6 +9,10 @@
     --accent-fg: var(--vscode-button-foreground);
     --danger: var(--vscode-errorForeground);
     --opaque-bg: #1e1e1e;
+    --radius-md: 10px;
+    --radius-lg: 12px;
+    --focus-ring: 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent);
+    --surface-hover: color-mix(in srgb, var(--vscode-toolbar-hoverBackground, var(--input-bg)) 75%, white 4%);
 }
 
 html {
@@ -43,7 +47,7 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 12px 16px;
+    padding: 12px 14px;
     border-bottom: 1px solid var(--border-color);
 }
 
@@ -61,7 +65,7 @@ body {
 
 .session-controls {
     display: flex;
-    gap: 8px;
+    gap: 6px;
     align-items: center;
 }
 
@@ -215,22 +219,36 @@ body {
 /* Interaction Elements */
 .approve-btn,
 .cancel-btn {
-    padding: 6px 12px;
-    border: none;
-    border-radius: 4px;
-    font-size: 0.9em;
+    padding: 7px 12px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-md);
+    font-size: 0.82rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
     cursor: pointer;
+    transition: transform 120ms ease, box-shadow 140ms ease, background-color 140ms ease, border-color 140ms ease, opacity 120ms ease;
 }
 
 .approve-btn {
     background: var(--accent);
     color: var(--accent-fg);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 75%, white 12%);
 }
 
 .cancel-btn {
-    background: transparent;
+    background: color-mix(in srgb, var(--input-bg) 85%, transparent);
     border: 1px solid var(--border-color);
     color: var(--text-primary);
+}
+
+.approve-btn:hover,
+.cancel-btn:hover {
+    transform: translateY(-1px);
+}
+
+.approve-btn:active,
+.cancel-btn:active {
+    transform: translateY(0);
 }
 
 /* Context Chips */
@@ -487,7 +505,7 @@ body {
 /* Input Zone */
 .input-area {
     border-top: 1px solid var(--border-color);
-    padding: 12px;
+    padding: 12px 12px 14px;
     background: var(--vscode-editor-background, var(--bg-color, #1e1e1e)) !important;
     position: relative;
 }
@@ -498,7 +516,7 @@ body {
     align-items: center;
     margin-bottom: 8px;
     flex-wrap: nowrap;
-    gap: 8px;
+    gap: 10px;
 }
 
 .left-controls {
@@ -524,42 +542,68 @@ body {
     background: var(--input-bg);
     border: 1px solid var(--border-color);
     border-radius: 999px;
-    padding: 2px;
+    padding: 3px;
     gap: 2px;
     flex-shrink: 0;
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text-primary) 8%, transparent);
 }
 
 .mode-pill {
-    border: none;
+    border: 1px solid transparent;
     background: transparent;
     color: var(--text-secondary);
     border-radius: 999px;
-    padding: 4px 8px;
-    font-size: 0.78em;
+    padding: 5px 10px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
     cursor: pointer;
     line-height: 1.2;
+    transition: color 120ms ease, background-color 120ms ease, transform 120ms ease, border-color 120ms ease;
 }
 
 .mode-pill:hover {
     color: var(--text-primary);
+    background: color-mix(in srgb, var(--input-bg) 74%, white 6%);
 }
 
 .mode-pill.active {
     background: var(--accent);
     color: var(--accent-fg);
+    border-color: color-mix(in srgb, var(--accent) 72%, white 10%);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 42%, transparent);
 }
 
-.right-controls .icon-btn {
-    background: transparent;
-    border: none;
-    font-size: 1.2em;
-    cursor: pointer;
-    padding: 4px;
+.md-icon-button {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    border: 1px solid color-mix(in srgb, var(--border-color) 92%, transparent);
+    background: color-mix(in srgb, var(--input-bg) 88%, transparent);
     color: var(--text-secondary);
+    transition: transform 120ms ease, background-color 120ms ease, color 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
 }
 
-.right-controls .icon-btn:hover {
+.md-icon-button:hover {
+    transform: translateY(-1px);
+    background: var(--surface-hover);
+    border-color: color-mix(in srgb, var(--accent) 32%, var(--border-color));
     color: var(--text-primary);
+}
+
+.md-icon-button:active {
+    transform: translateY(0);
+}
+
+.md-icon-button .material-symbols-outlined {
+    font-size: 19px;
+}
+
+button:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
 }
 
 .input-wrapper {
@@ -568,8 +612,14 @@ body {
     align-items: center;
     background: var(--input-bg);
     border: 1px solid var(--border-color);
-    border-radius: 6px;
-    padding: 8px;
+    border-radius: var(--radius-lg);
+    padding: 7px 8px;
+    transition: border-color 140ms ease, box-shadow 140ms ease, background-color 140ms ease;
+}
+
+.input-wrapper:focus-within {
+    border-color: color-mix(in srgb, var(--accent) 45%, var(--border-color));
+    box-shadow: var(--focus-ring);
 }
 
 #prompt-input {
@@ -577,7 +627,7 @@ body {
     background: transparent;
     border: none;
     color: var(--text-primary);
-    min-height: 24px;
+    min-height: 26px;
     max-height: 150px;
     resize: none;
     outline: none;
@@ -589,28 +639,53 @@ body {
     flex-shrink: 0;
     background: var(--accent);
     color: var(--accent-fg);
-    border: none;
-    border-radius: 4px;
-    width: 32px;
-    height: 32px;
-    min-width: 32px;
-    min-height: 32px;
+    border: 1px solid color-mix(in srgb, var(--accent) 74%, white 8%);
+    border-radius: 10px;
+    width: 34px;
+    height: 34px;
+    min-width: 34px;
+    min-height: 34px;
     cursor: pointer;
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    transition: transform 120ms ease, filter 120ms ease, box-shadow 120ms ease, opacity 120ms ease;
+}
+
+#send-btn:hover,
+#retry-btn:hover {
+    transform: translateY(-1px);
+    filter: brightness(1.05);
+}
+
+#send-btn:active,
+#retry-btn:active {
+    transform: translateY(0);
 }
 #retry-btn {
     background: var(--vscode-button-secondaryBackground, var(--input-bg));
     color: var(--vscode-button-secondaryForeground, var(--text-primary));
+    border-color: var(--border-color);
 }
 #retry-btn:disabled {
-    opacity: 0.5;
+    opacity: 0.55;
     cursor: not-allowed;
+    transform: none;
+    filter: none;
 }
 #retry-btn .material-symbols-outlined,
 #send-btn .material-symbols-outlined {
     font-size: 18px;
+}
+
+#stop-btn {
+    background: color-mix(in srgb, var(--vscode-inputValidation-errorBackground, #8b1d1d) 65%, var(--input-bg));
+    color: var(--vscode-errorForeground, #ff8f8f);
+    border-color: color-mix(in srgb, var(--vscode-errorForeground, #ff8f8f) 45%, transparent);
+}
+
+#stop-btn:hover {
+    filter: brightness(1.08);
 }
 
 
@@ -619,9 +694,9 @@ body {
     background-color: var(--input-bg);
     color: var(--text-primary);
     border: 1px solid var(--border-color);
-    border-radius: 4px;
-    padding: 4px 8px;
-    font-size: 0.8em;
+    border-radius: var(--radius-md);
+    padding: 5px 8px;
+    font-size: 0.78rem;
     cursor: pointer;
     outline: none;
     -webkit-appearance: none;
@@ -632,9 +707,19 @@ body {
     background-position: right 6px center;
     background-size: 12px;
     padding-right: 24px;
-    max-width: 140px;
+    max-width: 180px;
     min-width: 0;
     flex-shrink: 1;
+    transition: border-color 120ms ease, box-shadow 120ms ease, background-color 120ms ease;
+}
+
+.mini-select:hover {
+    border-color: color-mix(in srgb, var(--accent) 32%, var(--border-color));
+}
+
+.mini-select:focus {
+    border-color: color-mix(in srgb, var(--accent) 45%, var(--border-color));
+    box-shadow: var(--focus-ring);
 }
 
 /* Darker background for dropdown options */
@@ -702,12 +787,20 @@ body {
 }
 
 .diff-actions button {
-  padding: 5px 14px;
-  border-radius: 6px;
-  font-size: 0.8rem;
-  font-weight: 500;
+  padding: 7px 13px;
+  border-radius: 10px;
+  font-size: 0.78rem;
+  font-weight: 600;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: transform 120ms ease, background-color 140ms ease, border-color 140ms ease;
+}
+
+.diff-actions button:hover {
+  transform: translateY(-1px);
+}
+
+.diff-actions button:active {
+  transform: translateY(0);
 }
 
 .diff-actions button:first-child {
@@ -965,6 +1058,23 @@ body {
   font-size: 0.85rem;
 }
 
+.step-kind {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--border-color) 86%, transparent);
+  background: color-mix(in srgb, var(--input-bg) 82%, transparent);
+  color: var(--text-secondary);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  line-height: 1.2;
+  flex-shrink: 0;
+}
+
 .tool-activity .tool-name {
   color: var(--vscode-terminal-ansiBrightCyan, #4fc3f7);
   font-family: var(--vscode-editor-font-family, monospace);
@@ -1007,6 +1117,10 @@ body {
   background: rgba(79, 195, 247, 0.04);
   font-style: normal;
 }
+.thought-activity.plan-thought .step-kind {
+  color: var(--vscode-terminal-ansiBrightCyan, #4fc3f7);
+  border-color: rgba(79, 195, 247, 0.35);
+}
 .thought-activity.plan-thought .thought-text {
   opacity: 0.85;
   font-weight: 500;
@@ -1016,6 +1130,10 @@ body {
   border-left-color: rgba(102, 187, 106, 0.5);
   background: rgba(102, 187, 106, 0.04);
   font-style: normal;
+}
+.thought-activity.progress-thought .step-kind {
+  color: #66bb6a;
+  border-color: rgba(102, 187, 106, 0.35);
 }
 
 /* Agent step indicator badge */

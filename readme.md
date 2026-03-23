@@ -25,7 +25,7 @@
   <a href="docs/api-spec.yaml">OpenAPI Spec</a>
 </p>
 
-![IsoCode banner](assets/isocode-ui.png)
+![IsoCode banner](assets/isocode-banner-light.svg)
 
 ---
 

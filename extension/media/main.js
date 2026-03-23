@@ -1205,13 +1205,13 @@ function renderUnifiedDiff(diff) {
           const isProgress = text.includes('PROGRESS:') || text.includes('Completed task') || text.includes('Continuing');
           if (isPlan) {
             div.className = 'thought-activity plan-thought';
-            div.innerHTML = `<span class="tool-icon">📋</span> <span class="thought-text">${escapeHtml(text)}</span>`;
+            div.innerHTML = `<span class="step-kind">PLAN</span> <span class="thought-text">${escapeHtml(text)}</span>`;
           } else if (isProgress) {
             div.className = 'thought-activity progress-thought';
-            div.innerHTML = `<span class="tool-icon">✅</span> <span class="thought-text">${escapeHtml(text)}</span>`;
+            div.innerHTML = `<span class="step-kind">PROGRESS</span> <span class="thought-text">${escapeHtml(text)}</span>`;
           } else {
             div.className = 'thought-activity';
-            div.innerHTML = `<span class="tool-icon">💭</span> <span class="thought-text">${escapeHtml(text)}</span>`;
+            div.innerHTML = `<span class="step-kind">THINK</span> <span class="thought-text">${escapeHtml(text)}</span>`;
           }
           body.appendChild(div);
           currentStepsCount++;
@@ -1253,7 +1253,7 @@ function renderUnifiedDiff(diff) {
           const body = getOrCreateStepsGroup();
           const div = document.createElement('div');
           div.className = 'tool-activity';
-          div.innerHTML = `<span class="tool-icon">🔧</span> <span class="tool-name">${escapeHtml(toolName)}</span>${argsPreview ? `<span class="tool-args">${escapeHtml(argsPreview)}</span>` : ''}`;
+          div.innerHTML = `<span class="step-kind">TOOL</span> <span class="tool-name">${escapeHtml(toolName)}</span>${argsPreview ? `<span class="tool-args">${escapeHtml(argsPreview)}</span>` : ''}`;
           body.appendChild(div);
           currentStepsCount++;
           updateStepsLabel();
@@ -1270,7 +1270,7 @@ function renderUnifiedDiff(diff) {
             const body = getOrCreateStepsGroup();
             const div = document.createElement('div');
             div.className = 'thought-activity progress-thought';
-            div.innerHTML = `<span class="tool-icon">⚡</span> <span class="thought-text">Changes auto-applied (Agent+ mode)</span>`;
+            div.innerHTML = `<span class="step-kind">AUTO</span> <span class="thought-text">Changes auto-applied (Agent+ mode)</span>`;
             body.appendChild(div);
             currentStepsCount++;
             updateStepsLabel();

@@ -1,0 +1,23 @@
+<svg width="1600" height="520" viewBox="0 0 1600 520" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1600" height="520" fill="#FFFFFF"/>
+  <line x1="120" y1="458" x2="1480" y2="458" stroke="#E5E7EB" stroke-width="2"/>
+
+  <!-- Centered logo (inline icon for reliable GitHub rendering) -->
+  <g transform="translate(732 154) scale(5.6)" fill="#111111">
+    <path d="M5 12L10 7.5L11.5 9L7.8 12L11.5 15L10 16.5Z"/>
+    <circle cx="12" cy="5.5" r="1.2"/>
+    <rect x="11" y="8" width="2" height="11" rx="1"/>
+    <rect x="13.5" y="6.5" width="2" height="12" rx="1" transform="rotate(25 13.5 6.5)"/>
+    <path d="M19 12L14 7.5L12.5 9L16.2 12L12.5 15L14 16.5Z"/>
+  </g>
+
+  <!-- Centered title -->
+  <text x="800" y="340" text-anchor="middle" fill="#111827"
+        font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif"
+        font-size="72" font-weight="700" letter-spacing="0.2">IsoCode</text>
+
+  <!-- Centered subtitle -->
+  <text x="800" y="388" text-anchor="middle" fill="#374151"
+        font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif"
+        font-size="30" font-weight="500">Local-first, agentic coding assistant for IDEs</text>
+</svg>
