@@ -24,6 +24,13 @@ All notable changes to the IsoCode VS Code extension are documented here. The pr
 - **ACP concurrency stability**: `session/prompt` now responds deterministically per request (including concurrent sessions) and emits proper JSON-RPC results/errors.
 - **Cancel behavior under concurrency**: `stop-agent` now aborts in-flight LLM calls for the target session; reduced hangs where one cancelled session could delay/impact another.
 - **Agent run bounding for simple tasks**: Fast-path runs now use an internal effective step cap to reduce long loops and improve time-to-final on simple prompts.
+- **Security hardening (critical pass)**:
+  - Added optional bearer-token auth (`ISOCODE_AUTH_TOKEN`) for sensitive server endpoints.
+  - Replaced permissive CORS wildcard with a localhost/configurable allowlist.
+  - Hardened workspace path boundary checks (`path.relative` containment) in tool and agent file operations.
+  - Constrained codebase root inputs to server workspace-safe paths.
+  - ACP adapter now supports forwarding `ISOCODE_AUTH_TOKEN` to protected server endpoints.
+  - Dependency audit remediation completed (root + extension): `npm audit` reports 0 vulnerabilities.
 
 ### Local test commands
 
@@ -44,6 +51,9 @@ npm run acp-adapter
 
 # 5) Run automated suite
 npm test
+
+# 6) Security audit (prod deps)
+npm audit --omit=dev --json
 ```
 
 Run extension from source (separate step):
@@ -52,6 +62,7 @@ Run extension from source (separate step):
 cd extension
 npm install
 npm run compile
+npm audit --json
 # then open extension/ in VS Code and press F5
 ```
 

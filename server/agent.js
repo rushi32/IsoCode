@@ -21,8 +21,8 @@ const { createTwoFilesPatch } = require('diff');
 function resolvePathInWorkspace(workspaceRoot, filePath) {
     const root = path.resolve(workspaceRoot || process.cwd());
     const resolved = path.resolve(root, String(filePath).replace(/^\/+/, ''));
-    const normalizedRoot = root + path.sep;
-    if (resolved !== root && !resolved.startsWith(normalizedRoot)) {
+    const relative = path.relative(root, resolved);
+    if (relative.startsWith('..') || path.isAbsolute(relative)) {
         throw new Error(`Security: path outside workspace denied for: ${filePath}`);
     }
     return resolved;

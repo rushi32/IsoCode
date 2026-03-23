@@ -464,7 +464,8 @@ function getWorkspaceRoot(ctx = {}) {
 function resolvePath(filePath, workspaceRoot) {
     const resolved = path.resolve(workspaceRoot, filePath);
     const normalizedRoot = path.resolve(workspaceRoot);
-    if (!resolved.startsWith(normalizedRoot)) {
+    const relative = path.relative(normalizedRoot, resolved);
+    if (relative.startsWith('..') || path.isAbsolute(relative)) {
         throw new Error(`Security Error: Path traversal detected. Access denied to ${filePath}`);
     }
     return resolved;

@@ -8,7 +8,9 @@ info:
   description: |
     HTTP API for the IsoCode local AI coding agent. All endpoints are IDE-agnostic.
     Use with Accept: text/event-stream for streaming responses where noted.
-  version: 0.0.9
+    If ISOCODE_AUTH_TOKEN is configured on the server, protected endpoints require:
+    Authorization: Bearer <token>
+  version: 1.0.0
   contact:
     name: IsoCode
     url: https://github.com/rushi32/IsoCode
