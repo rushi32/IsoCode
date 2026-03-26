@@ -4,7 +4,7 @@ All notable changes to the IsoCode VS Code extension are documented here. The pr
 
 ---
 
-## [1.0.0] — Current
+## [1.0.1] — Current
 
 ### Added
 
@@ -160,4 +160,5 @@ npm audit --json
 [0.0.8]: https://github.com/rushi32/IsoCode/releases/tag/v0.0.8
 [0.0.7]: https://github.com/rushi32/IsoCode/releases/tag/v0.0.7
 [1.0.0]: https://github.com/rushi32/IsoCode/releases/tag/v1.0.0
+[1.0.1]: https://github.com/rushi32/IsoCode/releases/tag/v1.0.1
 [0.0.9]: https://github.com/rushi32/IsoCode/releases/tag/v0.0.9

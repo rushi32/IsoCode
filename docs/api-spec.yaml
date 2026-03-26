@@ -10,7 +10,7 @@ info:
     Use with Accept: text/event-stream for streaming responses where noted.
     If ISOCODE_AUTH_TOKEN is configured on the server, protected endpoints require:
     Authorization: Bearer <token>
-  version: 1.0.0
+  version: 1.0.1
   contact:
     name: IsoCode
     url: https://github.com/rushi32/IsoCode
