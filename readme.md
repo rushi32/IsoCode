@@ -106,6 +106,32 @@ Open the `extension` folder in VS Code → press **F5** (Extension Development H
 - **Server:** `.env` — `LLM_API_BASE` (e.g. `http://localhost:11434/v1` for Ollama), `LLM_MODEL_ID`, `PORT`.
 - **Extension:** VS Code Settings → search “IsoCode” — set **Server URL** if not `http://localhost:3000`.
 
+### Security Configuration (recommended)
+
+Enable bearer-token protection for sensitive server endpoints:
+
+```bash
+# .env
+ISOCODE_AUTH_TOKEN=change-this-to-a-long-random-token
+```
+
+When token auth is enabled:
+
+- Include `Authorization: Bearer <token>` on protected API calls (`/chat`, `/config`, `/stop-agent`, `/sessions`, `/codebase`, etc.).
+- For ACP adapter usage, provide the same token in the adapter environment:
+
+```bash
+ISOCODE_SERVER_URL=http://localhost:3000
+ISOCODE_AUTH_TOKEN=change-this-to-a-long-random-token
+npm run acp-adapter
+```
+
+Optional CORS hardening (extra origins, comma-separated):
+
+```bash
+CORS_ALLOW_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
+```
+
 ---
 
 ## Usage

@@ -5,7 +5,7 @@ import { registerApplyDiffCommand } from './commands/applyDiff';
 export function activate(context: vscode.ExtensionContext) {
     console.log('IsoCode Local is now active!');
 
-    const sidebarProvider = new SidebarProvider(context.extensionUri);
+    const sidebarProvider = new SidebarProvider(context.extensionUri, context);
     context.subscriptions.push(sidebarProvider);
     context.subscriptions.push(
         vscode.window.registerWebviewViewProvider(

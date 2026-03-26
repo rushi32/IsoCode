@@ -6,10 +6,11 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 const { runAgent, compactSession, switchModel, activeAgents } = require('./agent');
 const { callLLM, streamChat, listModels, healthCheck } = require('./llm');
-const { PORT, LLM_API_BASE, LLM_API_KEY, LLM_PROVIDER, LLM_MODEL_ID, LLM_NATIVE_BASE } = require('./config');
+const { PORT, LLM_API_BASE, LLM_API_KEY, LLM_PROVIDER, LLM_MODEL_ID, LLM_NATIVE_BASE, ISOCODE_AUTH_TOKEN, CORS_ALLOW_ORIGINS } = require('./config');
 const { listConversations, loadConversation, deleteConversation } = require('./store');
 const { estimateMessagesTokens } = require('./context-manager');
 const { getIndex, buildProjectMap } = require('./codebase');
@@ -19,12 +20,66 @@ const app = express();
 app.use(bodyParser.json({ limit: '10mb' }));
 app.use(express.static(__dirname));
 
-// CORS for local development
+const DEFAULT_ALLOWED_ORIGINS = new Set([
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    'http://localhost:8080',
+    'http://127.0.0.1:8080'
+]);
+for (const o of (Array.isArray(CORS_ALLOW_ORIGINS) ? CORS_ALLOW_ORIGINS : [])) {
+    DEFAULT_ALLOWED_ORIGINS.add(o);
+}
+
+function isOriginAllowed(origin) {
+    if (!origin || typeof origin !== 'string') return true; // non-browser clients
+    if (DEFAULT_ALLOWED_ORIGINS.has(origin)) return true;
+    try {
+        const u = new URL(origin);
+        if ((u.hostname === 'localhost' || u.hostname === '127.0.0.1') && (u.protocol === 'http:' || u.protocol === 'https:')) return true;
+    } catch { }
+    return false;
+}
+
+function safeEqual(a, b) {
+    const aa = Buffer.from(String(a || ''), 'utf8');
+    const bb = Buffer.from(String(b || ''), 'utf8');
+    if (aa.length !== bb.length) return false;
+    return crypto.timingSafeEqual(aa, bb);
+}
+
+function requireAuth(req, res, next) {
+    if (!ISOCODE_AUTH_TOKEN) return next();
+    const auth = req.header('authorization') || '';
+    const m = auth.match(/^Bearer\s+(.+)$/i);
+    const provided = m ? m[1] : '';
+    if (!provided || !safeEqual(provided, ISOCODE_AUTH_TOKEN)) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    next();
+}
+
+const SERVER_WORKSPACE_ROOT = path.resolve(process.cwd());
+function resolveWorkspaceRoot(inputRoot) {
+    if (!inputRoot || typeof inputRoot !== 'string') return SERVER_WORKSPACE_ROOT;
+    const candidate = path.resolve(inputRoot);
+    const rel = path.relative(SERVER_WORKSPACE_ROOT, candidate);
+    if (rel.startsWith('..') || path.isAbsolute(rel)) return SERVER_WORKSPACE_ROOT;
+    return candidate;
+}
+
+// CORS hardened for local/dev trusted origins
 app.use((req, res, next) => {
-    res.header('Access-Control-Allow-Origin', '*');
+    const origin = req.header('origin');
+    if (origin && isOriginAllowed(origin)) {
+        res.header('Access-Control-Allow-Origin', origin);
+        res.header('Vary', 'Origin');
+    }
     res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept');
-    res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
     if (req.method === 'OPTIONS') return res.sendStatus(200);
+    if (origin && !isOriginAllowed(origin)) return res.status(403).json({ error: 'CORS origin denied' });
     next();
 });
 
@@ -93,10 +148,11 @@ app.get('/health', async (_req, res) => {
 /* CONFIG                                                              */
 /* ------------------------------------------------------------------ */
 
-app.post('/config', (req, res) => {
+app.post('/config', requireAuth, (req, res) => {
     const incoming = req.body || {};
     const userConfigPath = path.join(process.cwd(), 'user-config.json');
-    fs.writeFileSync(userConfigPath, JSON.stringify(incoming, null, 2));
+    const { LLM_API_KEY, ...persistableConfig } = incoming;
+    fs.writeFileSync(userConfigPath, JSON.stringify(persistableConfig, null, 2));
 
     try {
         const runtime = require('./config.js');
@@ -121,6 +177,7 @@ app.post('/config', (req, res) => {
         if (incoming.LLM_API_BASE) runtime.LLM_API_BASE = incoming.LLM_API_BASE;
         if (incoming.LLM_MODEL_ID) runtime.LLM_MODEL_ID = incoming.LLM_MODEL_ID;
         if (incoming.LLM_PROVIDER) runtime.LLM_PROVIDER = incoming.LLM_PROVIDER;
+        if (typeof incoming.LLM_API_KEY === 'string') runtime.LLM_API_KEY = incoming.LLM_API_KEY;
     } catch (e) {
         console.error('[Server] Failed applying runtime config:', e.message);
     }
@@ -128,7 +185,7 @@ app.post('/config', (req, res) => {
     res.json({ success: true, mcpServers: (incoming.MCP_SERVERS || []).length });
 });
 
-app.get('/mcp-status', async (_req, res) => {
+app.get('/mcp-status', requireAuth, async (_req, res) => {
     const config = require('./config.js');
     const servers = config.MCP_SERVERS || [];
     res.json({
@@ -152,6 +209,14 @@ app.post('/chat', async (req, res) => {
         context,
         workspaceRoot
     } = req.body || {};
+    if (ISOCODE_AUTH_TOKEN) {
+        const auth = req.header('authorization') || '';
+        const m = auth.match(/^Bearer\s+(.+)$/i);
+        const provided = m ? m[1] : '';
+        if (!provided || !safeEqual(provided, ISOCODE_AUTH_TOKEN)) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+    }
 
     console.log('[Server] POST /chat', {
         hasMessage: !!message,
@@ -255,7 +320,7 @@ app.post('/chat', async (req, res) => {
             decision,
             model,
             agentPlus: !!agentPlus,
-            workspaceRoot,
+            workspaceRoot: resolveWorkspaceRoot(workspaceRoot),
             send,
             maxSteps: 500
         });
@@ -268,7 +333,7 @@ app.post('/chat', async (req, res) => {
     }
 });
 
-app.post('/stop-agent', (req, res) => {
+app.post('/stop-agent', requireAuth, (req, res) => {
     const { sessionId = 'default' } = req.body || {};
     const state = activeAgents.get(sessionId);
     if (state) {
@@ -290,7 +355,7 @@ app.post('/stop-agent', (req, res) => {
 /* COMPACT — compress conversation context                             */
 /* ------------------------------------------------------------------ */
 
-app.post('/clear-session', (req, res) => {
+app.post('/clear-session', requireAuth, (req, res) => {
     const { sessionId } = req.body || {};
     if (sessionId && activeAgents.has(sessionId)) {
         activeAgents.delete(sessionId);
@@ -299,7 +364,7 @@ app.post('/clear-session', (req, res) => {
     res.json({ ok: true });
 });
 
-app.post('/compact', async (req, res) => {
+app.post('/compact', requireAuth, async (req, res) => {
     const { sessionId = 'default', model } = req.body || {};
     console.log(`[Server] POST /compact session=${sessionId}`);
     try {
@@ -314,7 +379,7 @@ app.post('/compact', async (req, res) => {
 /* SESSIONS — list, load, delete conversations                         */
 /* ------------------------------------------------------------------ */
 
-app.get('/sessions', (_req, res) => {
+app.get('/sessions', requireAuth, (_req, res) => {
     const saved = listConversations();
     // Also include active in-memory sessions
     const active = [];
@@ -330,13 +395,13 @@ app.get('/sessions', (_req, res) => {
     res.json({ active, saved });
 });
 
-app.get('/sessions/:id', (req, res) => {
+app.get('/sessions/:id', requireAuth, (req, res) => {
     const conv = loadConversation(req.params.id);
     if (!conv) return res.status(404).json({ error: 'Session not found' });
     res.json(conv);
 });
 
-app.delete('/sessions/:id', (req, res) => {
+app.delete('/sessions/:id', requireAuth, (req, res) => {
     deleteConversation(req.params.id);
     activeAgents.delete(req.params.id);
     res.json({ ok: true });
@@ -346,7 +411,7 @@ app.delete('/sessions/:id', (req, res) => {
 /* MODEL SWITCH                                                        */
 /* ------------------------------------------------------------------ */
 
-app.post('/switch-model', async (req, res) => {
+app.post('/switch-model', requireAuth, async (req, res) => {
     const { sessionId = 'default', model } = req.body || {};
     if (!model) return res.status(400).json({ error: 'model required' });
     console.log(`[Server] POST /switch-model session=${sessionId} model=${model}`);
@@ -362,8 +427,8 @@ app.post('/switch-model', async (req, res) => {
 /* CODEBASE INDEX                                                      */
 /* ------------------------------------------------------------------ */
 
-app.get('/codebase', async (req, res) => {
-    const workspaceRoot = req.query.root || process.cwd();
+app.get('/codebase', requireAuth, async (req, res) => {
+    const workspaceRoot = resolveWorkspaceRoot(req.query.root);
     try {
         const index = await getIndex(workspaceRoot);
         const map = buildProjectMap(index);
@@ -379,10 +444,10 @@ app.get('/codebase', async (req, res) => {
     }
 });
 
-app.post('/codebase/reindex', async (req, res) => {
+app.post('/codebase/reindex', requireAuth, async (req, res) => {
     const { invalidateIndex } = require('./codebase');
     invalidateIndex();
-    const workspaceRoot = req.body?.root || process.cwd();
+    const workspaceRoot = resolveWorkspaceRoot(req.body?.root);
     try {
         const index = await getIndex(workspaceRoot);
         res.json({ ok: true, fileCount: index.fileCount });

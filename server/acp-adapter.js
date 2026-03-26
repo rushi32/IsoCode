@@ -14,13 +14,19 @@
  *
  * Environment:
  *   ISOCODE_SERVER_URL - Base URL of IsoCode server (default http://localhost:3000)
+ *   ISOCODE_AUTH_TOKEN - Optional bearer token for protected IsoCode server endpoints
  */
 
 const readline = require('readline');
 const axios = require('axios');
 
 const SERVER_URL = (process.env.ISOCODE_SERVER_URL || process.env.ISOCODE_SERVER || 'http://localhost:3000').replace(/\/$/, '');
+const AUTH_TOKEN = process.env.ISOCODE_AUTH_TOKEN || '';
 const PROTOCOL_VERSION = 1;
+
+function authHeaders() {
+    return AUTH_TOKEN ? { Authorization: `Bearer ${AUTH_TOKEN}` } : {};
+}
 
 // Session state: sessionId -> { cwd, mcpServers }
 const sessions = new Map();
@@ -120,7 +126,7 @@ async function handleSessionPrompt(params, id) {
                 context: []
             },
             responseType: 'stream',
-            headers: { Accept: 'text/event-stream' },
+            headers: { Accept: 'text/event-stream', ...authHeaders() },
             timeout: 0,
             validateStatus: () => true
         });
@@ -286,7 +292,7 @@ async function handleSessionCancel(params, id) {
         }
     }
     try {
-        await axios.post(`${SERVER_URL}/stop-agent`, { sessionId }, { timeout: 5000 });
+        await axios.post(`${SERVER_URL}/stop-agent`, { sessionId }, { timeout: 5000, headers: authHeaders() });
     } catch (_) {}
     if (id !== undefined) sendResponse(id, { cancelled: true });
 }

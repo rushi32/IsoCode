@@ -11,7 +11,7 @@
     --opaque-bg: #1e1e1e;
     --radius-md: 10px;
     --radius-lg: 12px;
-    --focus-ring: 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent);
+    --focus-ring: 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent);
     --surface-hover: color-mix(in srgb, var(--vscode-toolbar-hoverBackground, var(--input-bg)) 75%, white 4%);
 }
 
@@ -480,6 +480,17 @@ body {
     font-family: inherit;
 }
 
+#settings-panel .setting-item input[type="password"],
+#settings-panel .setting-item input[type="text"] {
+    width: 100%;
+    padding: 8px;
+    border-radius: 4px;
+    border: 1px solid var(--border-color);
+    background: var(--vscode-input-background);
+    color: var(--text-primary);
+    font-family: inherit;
+}
+
 #settings-panel .setting-item select,
 #settings-panel .setting-item textarea {
     width: 100%;
@@ -618,8 +629,8 @@ textarea:focus-visible {
 }
 
 .input-wrapper:focus-within {
-    border-color: color-mix(in srgb, var(--accent) 45%, var(--border-color));
-    box-shadow: var(--focus-ring);
+    border-color: var(--border-color);
+    box-shadow: none;
 }
 
 #prompt-input {
@@ -632,6 +643,12 @@ textarea:focus-visible {
     resize: none;
     outline: none;
     font-family: inherit;
+}
+
+#prompt-input:focus,
+#prompt-input:focus-visible {
+    outline: none;
+    box-shadow: none;
 }
 
 #send-btn,
@@ -718,8 +735,8 @@ textarea:focus-visible {
 }
 
 .mini-select:focus {
-    border-color: color-mix(in srgb, var(--accent) 45%, var(--border-color));
-    box-shadow: var(--focus-ring);
+    border-color: color-mix(in srgb, var(--accent) 24%, var(--border-color));
+    box-shadow: none;
 }
 
 /* Darker background for dropdown options */

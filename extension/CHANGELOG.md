@@ -4,13 +4,15 @@ All notable changes to the IsoCode VS Code extension are documented here. The pr
 
 ---
 
-## [1.0.0] — Current
+## [1.0.1] — Current
 
 ### Added
 
 - **Adaptive speed vs quality**: Agent detects simple vs long/complex queries. Simple queries use a fast path (lower max_tokens, capped project map, smaller auto-context) for quicker responses; long messages, complex keywords (refactor, review, implement, etc.), multi-step phrasing, or any follow-up turn use the full path (4096 max_tokens, full context) so complex task performance is unchanged.
 - **Config**: `MAX_AGENT_RESPONSE_TOKENS` (default 1536) for simple-query reply cap; documented in `.env.example`.
 - **ACP adapter command**: Root script `npm run acp-adapter` to run `server/acp-adapter.js` for ACP-compatible IDEs.
+- **Secure API key storage**: Paid API key can be saved in VS Code SecretStorage from extension settings (not stored in `.env` or workspace files).
+- **`/grasp` command**: Builds a context handoff prompt from recent conversation + context files so a local model can continue after switching.
 
 ### Changed
 
@@ -18,12 +20,20 @@ All notable changes to the IsoCode VS Code extension are documented here. The pr
 - **Simple-query path**: Lower temperature (0.15 Agent / 0.4 Agent+), project map capped at 2000 chars, auto-context 2500 chars, checkpoint 1000 chars when the query is classified as simple.
 - **Extension UI refresh**: Buttons and controls updated with modern, higher-contrast styling (mode pills, send/stop, icon buttons, diff actions), improved hover/active/focus states, and cleaner spacing for better usability.
 - **README hero**: Switched to a cleaner light banner (`assets/isocode-banner-light.svg`) with centered logo/title.
+- **Quota fallback UX**: On quota/rate-limit style failures, extension attempts a context snapshot and guides users to switch local model + run `/grasp`.
 
 ### Fixed
 
 - **ACP concurrency stability**: `session/prompt` now responds deterministically per request (including concurrent sessions) and emits proper JSON-RPC results/errors.
 - **Cancel behavior under concurrency**: `stop-agent` now aborts in-flight LLM calls for the target session; reduced hangs where one cancelled session could delay/impact another.
 - **Agent run bounding for simple tasks**: Fast-path runs now use an internal effective step cap to reduce long loops and improve time-to-final on simple prompts.
+- **Security hardening (critical pass)**:
+  - Added optional bearer-token auth (`ISOCODE_AUTH_TOKEN`) for sensitive server endpoints.
+  - Replaced permissive CORS wildcard with a localhost/configurable allowlist.
+  - Hardened workspace path boundary checks (`path.relative` containment) in tool and agent file operations.
+  - Constrained codebase root inputs to server workspace-safe paths.
+  - ACP adapter now supports forwarding `ISOCODE_AUTH_TOKEN` to protected server endpoints.
+  - Dependency audit remediation completed (root + extension): `npm audit` reports 0 vulnerabilities.
 
 ### Local test commands
 
@@ -44,6 +54,9 @@ npm run acp-adapter
 
 # 5) Run automated suite
 npm test
+
+# 6) Security audit (prod deps)
+npm audit --omit=dev --json
 ```
 
 Run extension from source (separate step):
@@ -52,6 +65,7 @@ Run extension from source (separate step):
 cd extension
 npm install
 npm run compile
+npm audit --json
 # then open extension/ in VS Code and press F5
 ```
 
@@ -146,4 +160,5 @@ npm run compile
 [0.0.8]: https://github.com/rushi32/IsoCode/releases/tag/v0.0.8
 [0.0.7]: https://github.com/rushi32/IsoCode/releases/tag/v0.0.7
 [1.0.0]: https://github.com/rushi32/IsoCode/releases/tag/v1.0.0
+[1.0.1]: https://github.com/rushi32/IsoCode/releases/tag/v1.0.1
 [0.0.9]: https://github.com/rushi32/IsoCode/releases/tag/v0.0.9

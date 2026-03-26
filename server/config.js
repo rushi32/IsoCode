@@ -75,6 +75,12 @@ module.exports = {
     LLM_NATIVE_BASE: getNativeBase(LLM_API_BASE),
 
     PORT: process.env.PORT || userConfig.PORT || 3000,
+    ISOCODE_AUTH_TOKEN: process.env.ISOCODE_AUTH_TOKEN || userConfig.ISOCODE_AUTH_TOKEN || '',
+    CORS_ALLOW_ORIGINS: (() => {
+        const raw = process.env.CORS_ALLOW_ORIGINS || userConfig.CORS_ALLOW_ORIGINS || '';
+        if (!raw || typeof raw !== 'string') return [];
+        return raw.split(',').map((s) => s.trim()).filter(Boolean);
+    })(),
 
     PERMISSIONS: {
         run_shell: process.env.PERMISSIONS_SHELL || 'ask',
