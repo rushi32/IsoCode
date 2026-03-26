@@ -480,6 +480,17 @@ body {
     font-family: inherit;
 }
 
+#settings-panel .setting-item input[type="password"],
+#settings-panel .setting-item input[type="text"] {
+    width: 100%;
+    padding: 8px;
+    border-radius: 4px;
+    border: 1px solid var(--border-color);
+    background: var(--vscode-input-background);
+    color: var(--text-primary);
+    font-family: inherit;
+}
+
 #settings-panel .setting-item select,
 #settings-panel .setting-item textarea {
     width: 100%;

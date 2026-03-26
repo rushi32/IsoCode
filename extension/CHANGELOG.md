@@ -11,6 +11,8 @@ All notable changes to the IsoCode VS Code extension are documented here. The pr
 - **Adaptive speed vs quality**: Agent detects simple vs long/complex queries. Simple queries use a fast path (lower max_tokens, capped project map, smaller auto-context) for quicker responses; long messages, complex keywords (refactor, review, implement, etc.), multi-step phrasing, or any follow-up turn use the full path (4096 max_tokens, full context) so complex task performance is unchanged.
 - **Config**: `MAX_AGENT_RESPONSE_TOKENS` (default 1536) for simple-query reply cap; documented in `.env.example`.
 - **ACP adapter command**: Root script `npm run acp-adapter` to run `server/acp-adapter.js` for ACP-compatible IDEs.
+- **Secure API key storage**: Paid API key can be saved in VS Code SecretStorage from extension settings (not stored in `.env` or workspace files).
+- **`/grasp` command**: Builds a context handoff prompt from recent conversation + context files so a local model can continue after switching.
 
 ### Changed
 
@@ -18,6 +20,7 @@ All notable changes to the IsoCode VS Code extension are documented here. The pr
 - **Simple-query path**: Lower temperature (0.15 Agent / 0.4 Agent+), project map capped at 2000 chars, auto-context 2500 chars, checkpoint 1000 chars when the query is classified as simple.
 - **Extension UI refresh**: Buttons and controls updated with modern, higher-contrast styling (mode pills, send/stop, icon buttons, diff actions), improved hover/active/focus states, and cleaner spacing for better usability.
 - **README hero**: Switched to a cleaner light banner (`assets/isocode-banner-light.svg`) with centered logo/title.
+- **Quota fallback UX**: On quota/rate-limit style failures, extension attempts a context snapshot and guides users to switch local model + run `/grasp`.
 
 ### Fixed
 

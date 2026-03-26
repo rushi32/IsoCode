@@ -13,9 +13,10 @@ export class SidebarProvider implements vscode.WebviewViewProvider, vscode.Dispo
     private activeContextDebounce?: NodeJS.Timeout;
     private lastUsedModel?: string;
     private lastUsedAgentPlus: boolean = false;
+    private readonly secretApiKeyName = 'isocode.llmApiKey';
     _view?: vscode.WebviewView;
 
-    constructor(private readonly _extensionUri: vscode.Uri) {
+    constructor(private readonly _extensionUri: vscode.Uri, private readonly _extensionContext: vscode.ExtensionContext) {
         this.output = vscode.window.createOutputChannel('IsoCode');
     }
 
@@ -347,10 +348,26 @@ export class SidebarProvider implements vscode.WebviewViewProvider, vscode.Dispo
                             ?? error.message
                             ?? String(error);
                         let userMsg = msg;
+                        const isQuotaLike = /quota|rate.?limit|billing|insufficient_quota|token limit|context length/i.test(String(msg || ''));
+                        if (isQuotaLike) {
+                            try {
+                                const sid = (data as any).sessionId || 'default';
+                                await axios.post(`${serverUrl}/compact`, {
+                                    sessionId: sid,
+                                    model: data.model || this.lastUsedModel || undefined
+                                }, { timeout: 20000 });
+                                userMsg += '\n\nContext snapshot saved. Switch to your local model and run /grasp to continue with context awareness.';
+                            } catch {
+                                userMsg += '\n\nTip: switch to your local model and run /grasp to rebuild context from recent chat.';
+                            }
+                        }
                         if (error.code === 'ECONNREFUSED') {
                             userMsg = 'Cannot connect to agent server. Make sure it is running (npm start from project root).';
                         } else if (hint) {
                             userMsg = `${msg}\n\n${hint}`;
+                        }
+                        if (isQuotaLike && !/\/grasp/i.test(userMsg)) {
+                            userMsg += '\n\nSwitch to your local model and run /grasp to continue with context awareness.';
                         }
                         this.output.appendLine(`IsoCode: chat error: ${userMsg}`);
                         webviewView.webview.postMessage({ type: 'addResponse', value: '❌ ' + userMsg });
@@ -517,6 +534,26 @@ export class SidebarProvider implements vscode.WebviewViewProvider, vscode.Dispo
                     webviewView.webview.postMessage({ type: "clear-chat" });
                     break;
                 }
+                case "prelimit-snapshot": {
+                    const sid = (data as any).sessionId || 'default';
+                    const model = (data as any).model || this.lastUsedModel || undefined;
+                    const snapshotText = String((data as any).snapshotText || '');
+                    try {
+                        const serverUrl = this.getServerUrl();
+                        await axios.post(`${serverUrl}/compact`, {
+                            sessionId: sid,
+                            model
+                        }, { timeout: 20000 });
+                        this.output.appendLine(`IsoCode: pre-limit snapshot compacted for session=${sid}`);
+                    } catch (e: any) {
+                        this.output.appendLine(`IsoCode: pre-limit compact failed: ${e?.message || String(e)}`);
+                    }
+                    webviewView.webview.postMessage({
+                        type: 'prelimit-snapshot-saved',
+                        snapshotText
+                    });
+                    break;
+                }
                 case "close-sidebar": {
                     vscode.commands.executeCommand("workbench.action.closeSidebar");
                     break;
@@ -530,6 +567,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider, vscode.Dispo
                     const historyLimit = config.get<number>('historyLimit', 50);
                     const contextWindow = config.get<number>('contextWindow', 10);
                     const mcpEnabled = config.get<boolean>('mcpEnabled', false);
+                    const hasApiKey = !!(await this._extensionContext.secrets.get(this.secretApiKeyName));
                     webviewView.webview.postMessage({
                         type: "settings",
                         value: {
@@ -539,7 +577,8 @@ export class SidebarProvider implements vscode.WebviewViewProvider, vscode.Dispo
                             sysPrompt,
                             historyLimit,
                             contextWindow,
-                            mcpEnabled
+                            mcpEnabled,
+                            hasApiKey
                         }
                     });
                     break;
@@ -553,6 +592,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider, vscode.Dispo
                         historyLimit: number;
                         contextWindow: number;
                         mcpEnabled: boolean;
+                        llmApiKey?: string;
                     };
                     const config = vscode.workspace.getConfiguration('isocode');
                         await config.update('shellPermissions', settings.shellPerm, vscode.ConfigurationTarget.Global);
@@ -562,6 +602,13 @@ export class SidebarProvider implements vscode.WebviewViewProvider, vscode.Dispo
                         await config.update('historyLimit', settings.historyLimit, vscode.ConfigurationTarget.Global);
                         await config.update('contextWindow', settings.contextWindow, vscode.ConfigurationTarget.Global);
                         await config.update('mcpEnabled', settings.mcpEnabled, vscode.ConfigurationTarget.Global);
+
+                        const trimmedApiKey = String(settings.llmApiKey || '').trim();
+                        if (trimmedApiKey) {
+                            await this._extensionContext.secrets.store(this.secretApiKeyName, trimmedApiKey);
+                            this.output.appendLine('IsoCode: LLM API key stored securely in VS Code SecretStorage');
+                        }
+                        const activeApiKey = (await this._extensionContext.secrets.get(this.secretApiKeyName)) || '';
 
                         // Push runtime settings to local server (critical for MCP to actually work)
                         try {
@@ -594,7 +641,8 @@ export class SidebarProvider implements vscode.WebviewViewProvider, vscode.Dispo
                                 MCP_SERVERS: parsedMcp,
                                 MAX_HISTORY_MESSAGES: settings.historyLimit,
                                 CONTEXT_WINDOW_SIZE: contextWindowValue,
-                                SYSTEM_PROMPT: settings.sysPrompt || undefined
+                                SYSTEM_PROMPT: settings.sysPrompt || undefined,
+                                LLM_API_KEY: activeApiKey || undefined
                             }, { timeout: 10000 });
                             this.output.appendLine(`IsoCode: pushed settings to server (${serverUrl}/config), MCP servers=${parsedMcp.length}`);
                             if (parsedMcp.length > 0) {
@@ -606,6 +654,18 @@ export class SidebarProvider implements vscode.WebviewViewProvider, vscode.Dispo
                         }
 
                         vscode.window.showInformationMessage('IsoCode settings saved');
+                    break;
+                }
+                case "clear-api-key": {
+                    await this._extensionContext.secrets.delete(this.secretApiKeyName);
+                    this.output.appendLine('IsoCode: cleared stored LLM API key');
+                    try {
+                        const serverUrl = this.getServerUrl();
+                        await axios.post(`${serverUrl}/config`, { LLM_API_KEY: '' }, { timeout: 8000 });
+                    } catch (e: any) {
+                        this.output.appendLine(`IsoCode: failed clearing runtime API key: ${e?.message || String(e)}`);
+                    }
+                    webviewView.webview.postMessage({ type: 'api-key-cleared' });
                     break;
                 }
                 case "get-models": {
@@ -1130,6 +1190,18 @@ export class SidebarProvider implements vscode.WebviewViewProvider, vscode.Dispo
   }
 ]'></textarea>
                                     <p style="font-size: 10px; opacity: 0.5; margin-top: 4px;">Each server needs: name, command, args (array). Save to apply.</p>
+                                </div>
+                            </div>
+                            <div class="setting-group">
+                                <h4>API Key (Secure Storage)</h4>
+                                <p style="font-size: 11px; opacity: 0.7; margin: 4px 0 8px 0;">
+                                    Stored in VS Code SecretStorage (not in .env or workspace files).
+                                </p>
+                                <div class="setting-item">
+                                    <label>Paid API Key (optional)</label>
+                                    <input type="password" id="llm-api-key" placeholder="Paste key to update (leave blank to keep current)">
+                                    <div id="api-key-status" style="font-size: 11px; opacity: 0.75; margin-top: 6px;">No API key stored</div>
+                                    <button id="clear-api-key-btn" class="md-button-outlined" style="width: 100%; margin-top: 8px;">Clear Stored API Key</button>
                                 </div>
                             </div>
                             <div class="setting-group">

@@ -151,7 +151,8 @@ app.get('/health', async (_req, res) => {
 app.post('/config', requireAuth, (req, res) => {
     const incoming = req.body || {};
     const userConfigPath = path.join(process.cwd(), 'user-config.json');
-    fs.writeFileSync(userConfigPath, JSON.stringify(incoming, null, 2));
+    const { LLM_API_KEY, ...persistableConfig } = incoming;
+    fs.writeFileSync(userConfigPath, JSON.stringify(persistableConfig, null, 2));
 
     try {
         const runtime = require('./config.js');
@@ -176,6 +177,7 @@ app.post('/config', requireAuth, (req, res) => {
         if (incoming.LLM_API_BASE) runtime.LLM_API_BASE = incoming.LLM_API_BASE;
         if (incoming.LLM_MODEL_ID) runtime.LLM_MODEL_ID = incoming.LLM_MODEL_ID;
         if (incoming.LLM_PROVIDER) runtime.LLM_PROVIDER = incoming.LLM_PROVIDER;
+        if (typeof incoming.LLM_API_KEY === 'string') runtime.LLM_API_KEY = incoming.LLM_API_KEY;
     } catch (e) {
         console.error('[Server] Failed applying runtime config:', e.message);
     }

@@ -178,6 +178,12 @@ function renderUnifiedDiff(diff) {
   const contextWindow = document.getElementById('context-window');
   /** @type {HTMLInputElement | null} */
   const mcpEnabled = document.getElementById('mcp-enabled');
+  /** @type {HTMLInputElement | null} */
+  const llmApiKey = document.getElementById('llm-api-key');
+  /** @type {HTMLButtonElement | null} */
+  const clearApiKeyBtn = document.getElementById('clear-api-key-btn');
+  /** @type {HTMLDivElement | null} */
+  const apiKeyStatus = document.getElementById('api-key-status');
   /** @type {HTMLButtonElement | null} */
   const saveSettingsBtn = document.getElementById('save-settings-btn');
   /** @type {HTMLDivElement | null} */
@@ -193,6 +199,8 @@ function renderUnifiedDiff(diff) {
   let lastFullPrompt = '';
   let currentMode = 'chat'; // 'chat' | 'agent' | 'agent_plus'
   let lastAskOptions = { autoMode: false, agentPlus: false, model: undefined };
+  let currentProvider = (state.currentProvider || '').toLowerCase();
+  let prelimitSnapshot = state.prelimitSnapshot || '';
 
   let lastAtQuery = '';
   let atSearchTimeout = null;
@@ -249,6 +257,46 @@ function renderUnifiedDiff(diff) {
       contextBlobs,
       selectedModel: modelSelect ? modelSelect.value : undefined,
       assistantMode: currentMode,
+      currentProvider,
+      prelimitSnapshot,
+    });
+  }
+
+  function buildPrelimitSnapshot() {
+    const conv = conversationManager ? conversationManager.getCurrentConversation?.() : null;
+    const messages = Array.isArray(conv?.messages) ? conv.messages : [];
+    const recent = messages.slice(-40).map((m) => {
+      const sender = m.sender === 'user' ? 'User' : 'Assistant';
+      const text = String(m.content || '').replace(/\s+/g, ' ').trim().slice(0, 500);
+      return `${sender}: ${text}`;
+    }).join('\n');
+    const ctxFiles = (contextBlobs || []).map((b) => b.path || b.name).slice(0, 30).join('\n');
+    return (
+      'AUTO-SAVED PRE-LIMIT SNAPSHOT\n' +
+      'Use this as prior context when switching to local model.\n\n' +
+      'RECENT CONVERSATION:\n' + (recent || '(none)') + '\n\n' +
+      'CONTEXT FILES:\n' + (ctxFiles || '(none)')
+    );
+  }
+
+  function maybeAutoSnapshotBeforeLimit(nextPrompt) {
+    const provider = String(currentProvider || '').toLowerCase();
+    if (!(provider.includes('openai') || provider.includes('api'))) return;
+    const conv = conversationManager ? conversationManager.getCurrentConversation?.() : null;
+    const messages = Array.isArray(conv?.messages) ? conv.messages : [];
+    const msgCount = messages.length;
+    const recentChars = messages.slice(-25).reduce((n, m) => n + String(m.content || '').length, 0);
+    const incomingChars = String(nextPrompt || '').length;
+    const thresholdReached = msgCount >= 24 || (recentChars + incomingChars) >= 24000;
+    if (!thresholdReached) return;
+    prelimitSnapshot = buildPrelimitSnapshot();
+    persistState();
+    vscode.postMessage({
+      type: 'prelimit-snapshot',
+      sessionId: getSessionId(),
+      model: modelSelect ? modelSelect.value : undefined,
+      snapshotText: prelimitSnapshot,
+      reason: `provider=${provider}, messages=${msgCount}, chars=${recentChars + incomingChars}`
     });
   }
 
@@ -680,6 +728,7 @@ function renderUnifiedDiff(diff) {
           '**Conversation:**\n' +
           '- `/new` — Start fresh conversation\n' +
           '- `/compact` — Compress context (frees token space)\n' +
+          '- `/grasp` — Build a context handoff summary for the currently selected model (useful after switching from paid API to local model)\n' +
           '- `/sessions` — List conversation history\n' +
           '- `/clear` — Clear chat display\n\n' +
           '**Modes:**\n' +
@@ -701,6 +750,37 @@ function renderUnifiedDiff(diff) {
           '- Agent auto-gathers relevant context from your codebase\n' +
           '- Create `.isocode/rules.md` for project-specific instructions'
         );
+        promptInput.value = '';
+        return;
+      }
+      if (cmd === '/grasp') {
+        const conv = conversationManager ? conversationManager.getCurrentConversation?.() : null;
+        const messages = Array.isArray(conv?.messages) ? conv.messages : [];
+        const recent = messages.slice(-30).map((m) => {
+          const sender = m.sender === 'user' ? 'User' : 'Assistant';
+          const text = String(m.content || '').replace(/\s+/g, ' ').trim().slice(0, 400);
+          return `${sender}: ${text}`;
+        }).join('\n');
+        const ctxFiles = (contextBlobs || []).map((b) => b.path || b.name).slice(0, 20).join('\n');
+        const fallbackSnapshot = prelimitSnapshot ? ('\n\nAUTO_SNAPSHOT:\n' + prelimitSnapshot) : '';
+        const graspPrompt =
+          'GRASP CONTEXT HANDOFF\n' +
+          'Use the following recent conversation and context-file hints as prior context. ' +
+          'First provide a concise "What I know so far" summary, then continue with the user intent.\n\n' +
+          'RECENT CONVERSATION:\n' + (recent || '(none)') + '\n\n' +
+          'CONTEXT FILES:\n' + (ctxFiles || '(none)') + '\n\n' +
+          'Now continue from this context.' + fallbackSnapshot;
+        const selectedModel = modelSelect ? modelSelect.value : undefined;
+        setLoading(true, 'Grasping context...');
+        vscode.postMessage({
+          type: 'ask',
+          value: graspPrompt,
+          autoMode: false,
+          agentPlus: false,
+          model: selectedModel,
+          contextBlobs: contextBlobs,
+          sessionId: getSessionId(),
+        });
         promptInput.value = '';
         return;
       }
@@ -753,6 +833,7 @@ function renderUnifiedDiff(diff) {
     if (conversationManager) conversationManager.addMessage('user', raw);
 
     const finalPrompt = raw;
+    maybeAutoSnapshotBeforeLimit(finalPrompt);
 
     const { autoMode, agentPlus } = getModeFlags();
     const selectedModel = modelSelect ? modelSelect.value : undefined;
@@ -1076,9 +1157,17 @@ function renderUnifiedDiff(diff) {
           historyLimit: historyLimit ? parseInt(historyLimit.value) : 50,
           contextWindow: contextWindow ? parseInt(contextWindow.value) : 10,
           mcpEnabled: mcpEnabled ? mcpEnabled.checked : false,
+          llmApiKey: llmApiKey ? llmApiKey.value : '',
         },
       });
+      if (llmApiKey) llmApiKey.value = '';
       closeSettings();
+    });
+  }
+
+  if (clearApiKeyBtn) {
+    clearApiKeyBtn.addEventListener('click', () => {
+      vscode.postMessage({ type: 'clear-api-key' });
     });
   }
 
@@ -1101,6 +1190,8 @@ function renderUnifiedDiff(diff) {
       window._isoSessionId = null; // Reset for fresh session
       if (conversationManager) conversationManager.createConversation();
       if (chatHistory) chatHistory.innerHTML = '';
+      prelimitSnapshot = '';
+      persistState();
     });
   }
 
@@ -1438,6 +1529,8 @@ function renderUnifiedDiff(diff) {
       }
       case 'health': {
         const h = message.value || {};
+        currentProvider = String(h.provider || currentProvider || '').toLowerCase();
+        persistState();
         if (!h.ok && chatHistory) {
           const provider = h.provider || 'LLM';
           const hint = provider === 'ollama'
@@ -1453,6 +1546,13 @@ function renderUnifiedDiff(diff) {
         }
         break;
       }
+      case 'prelimit-snapshot-saved': {
+        if (message.snapshotText) {
+          prelimitSnapshot = String(message.snapshotText);
+          persistState();
+        }
+        break;
+      }
       case 'settings': {
         const v = message.value || {};
         if (permShell && v.shellPerm) permShell.value = v.shellPerm;
@@ -1462,6 +1562,15 @@ function renderUnifiedDiff(diff) {
         if (historyLimit && v.historyLimit) historyLimit.value = v.historyLimit;
         if (contextWindow && v.contextWindow) contextWindow.value = v.contextWindow;
         if (mcpEnabled && typeof v.mcpEnabled === 'boolean') mcpEnabled.checked = v.mcpEnabled;
+        if (apiKeyStatus) {
+          apiKeyStatus.textContent = v.hasApiKey ? 'API key is stored securely in VS Code' : 'No API key stored';
+        }
+        if (llmApiKey) llmApiKey.value = '';
+        break;
+      }
+      case 'api-key-cleared': {
+        if (apiKeyStatus) apiKeyStatus.textContent = 'No API key stored';
+        if (llmApiKey) llmApiKey.value = '';
         break;
       }
     }
